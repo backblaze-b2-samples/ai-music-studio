@@ -29,7 +29,7 @@ services/api/                                FastAPI backend (layered: types/con
   app/service/library.py                     audio key validation, list/head/delete
   app/service/audio_metadata.py              wave + mutagen extractor
   app/repo/b2_client.py                      boto3 — generic file helpers
-  app/repo/b2_tracks.py                      audio-prefix helpers (alias: head_track_objects_parallel)
+  app/repo/b2_tracks.py                      track-prefix helpers — list, head, presign, delete, head_track_objects_parallel
   app/repo/b2_projects.py                    project-scoped helpers (put/get JSON, list, delete tree, presign)
   app/repo/music_provider.py                 MusicProvider interface + MockMusicProvider + SunoMusicProvider (stub)
   app/repo/_mock_tracks/                     pre-baked WAVs for the mock provider (committed)
