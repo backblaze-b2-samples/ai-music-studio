@@ -2,7 +2,7 @@
 # Feature: Bucket Explorer (Files)
 
 ## Purpose
-List, preview, download, and delete **everything** stored in Backblaze B2 — including audio under `audio/`, generic uploads under `uploads/`, and anything else in the bucket. This is the ops-style explorer; for audio-only browsing with playback see [Audio Library](audio-library.md).
+List, preview, download, and delete **everything** stored in Backblaze B2 — including audio under `audio/`, generic uploads under `uploads/`, and anything else in the bucket. This is the ops-style explorer; for audio-only browsing with playback see [Track Library](track-library.md).
 
 ## Used By
 - UI: `/files` page, file browser component
@@ -52,7 +52,7 @@ List, preview, download, and delete **everything** stored in Backblaze B2 — in
 - All key-based API calls validated against path-traversal patterns; bulk-delete validates every key before any B2 call so a single bad payload doesn't partially mutate the bucket.
 
 ## Audio vs. Library
-The Files explorer is intentionally the full-bucket view. Audio assets under `audio/` are *also* deletable from here — that's a power-user surface. The primary audio UX (playback, waveform, formatted duration) lives in the [Audio Library](audio-library.md) at `/library`.
+The Files explorer is intentionally the full-bucket view. Audio assets under `audio/` are *also* deletable from here — that's a power-user surface. The primary audio UX (playback, waveform, formatted duration) lives in the [Track Library](track-library.md) at `/library`.
 
 ## Edge Cases
 - File not found (deleted externally) -> API returns 404
@@ -75,6 +75,6 @@ The Files explorer is intentionally the full-bucket view. Audio assets under `au
 - Pass criteria: all pytest tests green, no ruff violations
 
 ## Related Docs
-- [Audio Library](audio-library.md)
+- [Track Library](track-library.md)
 - [ARCHITECTURE.md](../../ARCHITECTURE.md)
 - [App Workflows](../app-workflows.md)

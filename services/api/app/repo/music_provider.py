@@ -172,10 +172,26 @@ class SunoMusicProvider(MusicProvider):
 
     Listed under tech debt (`docs/exec-plans/tech-debt-tracker.md`). Until
     that lands, instantiating this provider and calling `generate()`
-    raises so the failure mode is loud and obvious.
+    raises so the failure mode is loud and obvious. The constructor
+    still validates that `SUNO_API_KEY` is set so misconfiguration fails
+    fast at startup rather than only at the first generate call.
     """
 
     name = "suno"
+
+    def __init__(self, api_key: str | None = None):
+        # Late import keeps this module decoupled from settings at import
+        # time (handy for tests that construct a Mock provider without
+        # touching the env).
+        from app.config import settings
+
+        key = api_key if api_key is not None else settings.suno_api_key
+        if not key:
+            raise RuntimeError(
+                "SUNO_API_KEY required when MUSIC_PROVIDER=suno. "
+                "Set it in .env or switch MUSIC_PROVIDER back to 'mock'."
+            )
+        self.api_key = key
 
     def generate(
         self,

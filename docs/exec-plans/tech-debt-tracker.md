@@ -16,3 +16,4 @@ Known tech debt items. Agents update this when they discover or create tech debt
 | `build_tree` silently drops audio with no sidecar | A failed sidecar write leaves an orphan audio object invisible in the UI | Surface orphans as a recoverable row in `RevisionTree` with a "repair" affordance that re-creates a minimal sidecar | Low | Open |
 | `humanizeBytes` duplicated in TypeScript | DRY violation | Extract to `lib/utils.ts` | Low | Open |
 | `formatDate` duplicated in TypeScript | DRY violation | Extract to `lib/utils.ts` | Low | Open |
+| Reference-clip upload UI not wired into project detail | `apps/web/src/components/upload/` exists but no callsite mounts it — users can't drop a reference clip from the project page yet | Wire `<UploadForm scope="reference"/>` into `apps/web/src/components/projects/project-detail.tsx` when the reference-upload feature is prioritized; documented in `docs/features/reference-upload.md` | Medium | Open |

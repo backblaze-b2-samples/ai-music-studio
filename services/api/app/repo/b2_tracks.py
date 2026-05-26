@@ -62,7 +62,7 @@ def head_audio_object(key: str) -> dict | None:
         raise
 
 
-def head_audio_objects_parallel(
+def head_track_objects_parallel(
     keys: list[str], max_workers: int = 10
 ) -> dict[str, dict]:
     """Issue HEAD for each key in parallel; map key -> head response.
@@ -148,8 +148,3 @@ def presign_audio_playback(key: str, expires_in: int = 600) -> str:
         )
     except ClientError as e:
         raise RuntimeError(f"B2 presign failed for '{key}': {e}") from e
-
-
-# Music-studio alias — same parallel HEAD helper, re-exported under the
-# track-centric name. The original name is kept for the Library code path.
-head_track_objects_parallel = head_audio_objects_parallel

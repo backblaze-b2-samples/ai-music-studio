@@ -6,7 +6,7 @@ Read duration, sample rate, channels, bit depth, and codec from an uploaded audi
 
 ## Used By
 - API: `POST /upload` (called after the B2 put)
-- UI: upload results (`FileMetadataDetail`), audio asset cards (downstream — see [Audio Library](audio-library.md))
+- UI: upload results (`FileMetadataDetail`), audio asset cards (downstream — see [Track Library](track-library.md))
 
 ## Core Functions
 - `services/api/app/service/audio_metadata.py` — `extract_metadata()`, `extract_audio_metadata()`, `_extract_wav_metadata()`, `_extract_mutagen_metadata()`, `to_s3_metadata()`, `S3_AUDIO_META_KEYS`
@@ -69,6 +69,6 @@ On upload, the audio-specific fields are stamped onto the B2 object as `x-amz-me
 - Pass criteria: all pytest tests green, no ruff violations
 
 ## Related Docs
-- [Audio Upload](file-upload.md)
-- [Audio Library](audio-library.md)
+- [Reference-Clip Upload](reference-upload.md)
+- [Track Library](track-library.md)
 - [ARCHITECTURE.md](../../ARCHITECTURE.md)

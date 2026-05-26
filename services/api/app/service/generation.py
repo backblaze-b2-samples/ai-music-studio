@@ -22,6 +22,7 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime
 
+from app.config import settings
 from app.repo import upload_file
 from app.repo.b2_projects import put_json
 from app.repo.music_provider import GenerationResult, MusicProvider, get_provider
@@ -40,6 +41,14 @@ from app.types import (
     Track,
 )
 from app.types.formatting import humanize_bytes
+
+# Pydantic field defaults must be literal-or-callable, so `GenerationRequest.
+# duration_sec` keeps its `Field(default=30, …)` shape (the literal `30`
+# stays as the floor). The env-driven override
+# (`MUSIC_PROVIDER_DEFAULT_DURATION_SEC`) is applied here at the orchestrator
+# level: if the inbound request's duration equals the Pydantic default,
+# we swap in the settings value before calling the provider.
+_GENERATION_REQUEST_FIELD_DEFAULT_DURATION_SEC = 30
 
 logger = logging.getLogger(__name__)
 
@@ -111,12 +120,21 @@ def generate_track(
 
     selected = provider or get_provider()
 
+    # Honor MUSIC_PROVIDER_DEFAULT_DURATION_SEC when the client didn't
+    # specify a duration. Pydantic populated the field with its literal
+    # default (30); if the value still equals that literal, prefer the
+    # settings value so operators can change the studio's default without
+    # editing source.
+    duration_sec = request.duration_sec
+    if duration_sec == _GENERATION_REQUEST_FIELD_DEFAULT_DURATION_SEC:
+        duration_sec = settings.music_provider_default_duration_sec
+
     started = datetime.now(UTC)
     try:
         result: GenerationResult = selected.generate(
             prompt=request.prompt,
             style=request.style,
-            duration_sec=request.duration_sec,
+            duration_sec=duration_sec,
         )
     except NotImplementedError as e:
         raise GenerationError(str(e), status_code=501) from e
@@ -165,7 +183,7 @@ def generate_track(
         project_id=project_id,
         prompt=request.prompt,
         style=request.style,
-        duration_sec=request.duration_sec,
+        duration_sec=duration_sec,
         provider=selected.name,
         parent_track_id=request.parent_track_id,
         generation_ms=result.generation_ms,

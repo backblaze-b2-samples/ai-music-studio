@@ -24,7 +24,7 @@ from app.repo import (
     delete_audio_objects_batch,
     get_presigned_url,
     head_audio_object,
-    head_audio_objects_parallel,
+    head_track_objects_parallel,
     list_audio_objects,
     presign_audio_playback,
 )
@@ -164,7 +164,7 @@ def list_audio_assets(limit: int = 100, with_metadata: bool = True) -> list[Audi
     raw.sort(key=lambda o: o["LastModified"], reverse=True)
     raw = raw[:limit]
     heads: dict[str, dict] = (
-        head_audio_objects_parallel([obj["Key"] for obj in raw])
+        head_track_objects_parallel([obj["Key"] for obj in raw])
         if with_metadata
         else {}
     )
@@ -231,7 +231,7 @@ def get_audio_aggregates() -> dict:
     total_size = sum(obj["Size"] for obj in raw)
 
     keys = [obj["Key"] for obj in raw]
-    heads = head_audio_objects_parallel(keys) if keys else {}
+    heads = head_track_objects_parallel(keys) if keys else {}
 
     total_duration_ms = 0
     formats: dict[str, int] = {}

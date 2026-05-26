@@ -14,7 +14,7 @@ importers:
 
   apps/web:
     dependencies:
-      '@ai-audio-starter-kit/shared':
+      '@ai-music-studio/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@hookform/resolvers':

@@ -32,7 +32,7 @@ async def test_upload_activity_returns_daily_counts(client, monkeypatch):
     )
     monkeypatch.setattr(
         files_service,
-        "head_audio_objects_parallel",
+        "head_track_objects_parallel",
         lambda keys: {k: {"Metadata": {"duration-ms": "30000"}} for k in keys},
     )
 
@@ -63,7 +63,7 @@ async def test_upload_activity_rejects_invalid_days(client):
 async def test_upload_activity_fills_missing_days(client, monkeypatch):
     monkeypatch.setattr(files_service, "list_audio_objects", lambda max_keys: [])
     monkeypatch.setattr(
-        files_service, "head_audio_objects_parallel", lambda keys: {}
+        files_service, "head_track_objects_parallel", lambda keys: {}
     )
 
     response = await client.get("/files/stats/activity?days=3")

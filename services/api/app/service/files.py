@@ -16,7 +16,7 @@ from app.repo import (
     get_file_metadata,
     get_presigned_url,
     get_upload_stats,
-    head_audio_objects_parallel,
+    head_track_objects_parallel,
     list_audio_objects,
     list_files,
 )
@@ -203,7 +203,7 @@ def get_upload_activity(days: int = 7) -> list[DailyUploadCount]:
 
     raw = list_audio_objects(max_keys=10_000)
     in_window = [o for o in raw if o["LastModified"].date() >= cutoff]
-    heads = head_audio_objects_parallel([o["Key"] for o in in_window])
+    heads = head_track_objects_parallel([o["Key"] for o in in_window])
 
     counts: dict[str, int] = defaultdict(int)
     durations: dict[str, int] = defaultdict(int)

@@ -253,6 +253,6 @@ def get_upload_stats() -> dict:
     }
 
 
-# Audio Library helpers live in `b2_audio.py` and are re-exported via
+# Audio Library helpers live in `b2_tracks.py` and are re-exported via
 # `app.repo.__init__`. Keeping them in their own module lets the generic
 # helpers above stay focused on the full-bucket explorer.

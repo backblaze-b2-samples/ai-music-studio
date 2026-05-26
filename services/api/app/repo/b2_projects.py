@@ -178,7 +178,7 @@ def presign_track_playback(key: str, expires_in: int = 600) -> str:
 def head_keys_parallel(keys: list[str], max_workers: int = 10) -> dict[str, dict]:
     """HEAD a list of keys in parallel; map key -> head response.
 
-    Mirror of `head_audio_objects_parallel` but lives in this module so
+    Mirror of `head_track_objects_parallel` but lives in this module so
     project-scoped callers don't have to import from the audio-flavored
     helper. Missing keys (404) are silently dropped.
     """

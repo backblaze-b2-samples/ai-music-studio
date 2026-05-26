@@ -3,7 +3,7 @@
 Aggregates feed the dashboard's Audio Storage tile, Total Duration card, and
 Format breakdown. The function HEADs every audio object in parallel to pull
 durations stamped at upload time. We stub both `list_audio_objects` and
-`head_audio_objects_parallel` to exercise the summation, formats bucketing,
+`head_track_objects_parallel` to exercise the summation, formats bucketing,
 and the externally-seeded (no-metadata) fallback path.
 """
 
@@ -36,7 +36,7 @@ def test_aggregates_sum_duration_from_head_metadata(monkeypatch):
         library_service, "list_audio_objects", lambda max_keys: objs
     )
     monkeypatch.setattr(
-        library_service, "head_audio_objects_parallel", lambda keys: heads
+        library_service, "head_track_objects_parallel", lambda keys: heads
     )
 
     result = library_service.get_audio_aggregates()
@@ -60,7 +60,7 @@ def test_aggregates_format_counts_include_other_bucket(monkeypatch):
         library_service, "list_audio_objects", lambda max_keys: objs
     )
     monkeypatch.setattr(
-        library_service, "head_audio_objects_parallel", lambda keys: {}
+        library_service, "head_track_objects_parallel", lambda keys: {}
     )
 
     result = library_service.get_audio_aggregates()
@@ -93,7 +93,7 @@ def test_aggregates_handle_objects_without_stamped_metadata(monkeypatch):
         library_service, "list_audio_objects", lambda max_keys: objs
     )
     monkeypatch.setattr(
-        library_service, "head_audio_objects_parallel", lambda keys: heads
+        library_service, "head_track_objects_parallel", lambda keys: heads
     )
 
     result = library_service.get_audio_aggregates()
@@ -113,7 +113,7 @@ def test_aggregates_empty_bucket_returns_zeros(monkeypatch):
         return {}
 
     monkeypatch.setattr(library_service, "list_audio_objects", lambda max_keys: [])
-    monkeypatch.setattr(library_service, "head_audio_objects_parallel", _head)
+    monkeypatch.setattr(library_service, "head_track_objects_parallel", _head)
 
     result = library_service.get_audio_aggregates()
 

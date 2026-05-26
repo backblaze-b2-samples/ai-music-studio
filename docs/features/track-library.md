@@ -25,7 +25,7 @@ view, see [Project Asset Explorer](project-asset-explorer.md).
 - `apps/web/src/lib/api-client.ts::getLibrary, getPlaybackUrl, getLibraryDownloadUrl, deleteAudioAsset, bulkDeleteAudioAssets`
 - `services/api/app/runtime/library.py` — FastAPI routes
 - `services/api/app/service/library.py` — key validation, listing, delete, bulk delete, aggregates
-- `services/api/app/repo/b2_tracks.py::list_audio_objects, head_audio_object, head_audio_objects_parallel, delete_audio_object, delete_audio_objects_batch, presign_audio_playback`
+- `services/api/app/repo/b2_tracks.py::list_audio_objects, head_audio_object, head_track_objects_parallel, delete_audio_object, delete_audio_objects_batch, presign_audio_playback`
 
 ## Canonical Files
 - Pattern exemplar: `apps/web/src/components/library/audio-asset-card.tsx`
@@ -56,7 +56,7 @@ listing to include project-scoped tracks (with a project chip on each
 card).
 
 ## Flow
-- `GET /library` -> `list_objects_v2(Prefix="audio/")` -> sort newest-first -> fan out HEADs via `head_audio_objects_parallel` (10 workers) to pull `duration_ms`, `sample_rate`, `channels`, `bit_depth`, `codec` from `x-amz-meta-*` -> return
+- `GET /library` -> `list_objects_v2(Prefix="audio/")` -> sort newest-first -> fan out HEADs via `head_track_objects_parallel` (10 workers) to pull `duration_ms`, `sample_rate`, `channels`, `bit_depth`, `codec` from `x-amz-meta-*` -> return
 - Playback / download -> validate key -> HEAD for existence -> mint presigned URL -> return
 - Delete -> validate -> `delete_object` -> 200
 - Bulk delete -> validate every key, deduplicate, one `DeleteObjects` call (chunks of 1000) -> `{ deleted, errors }`
