@@ -1,0 +1,41 @@
+{
+  "description": "Pre-baked mock tracks used by MockMusicProvider. Generated deterministically at scaffold time via stdlib `wave`; not real music \u2014 short tones designed to exercise the metadata extractor and player UI without external assets.",
+  "entries": [
+    {
+      "file": "ambient.wav",
+      "keywords": [
+        "ambient",
+        "calm",
+        "peaceful",
+        "drone",
+        "pad",
+        "slow"
+      ]
+    },
+    {
+      "file": "upbeat.wav",
+      "keywords": [
+        "upbeat",
+        "energetic",
+        "fast",
+        "dance",
+        "edm",
+        "house",
+        "techno"
+      ]
+    },
+    {
+      "file": "mellow.wav",
+      "keywords": [
+        "mellow",
+        "soft",
+        "lo-fi",
+        "lofi",
+        "chill",
+        "smooth",
+        "jazz"
+      ]
+    }
+  ],
+  "version": 1
+}
