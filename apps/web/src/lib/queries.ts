@@ -12,6 +12,7 @@ import {
   generateTrack,
   getFiles,
   getFileStats,
+  getGenerationStatus,
   getLibrary,
   getPreviewUrl,
   getProject,
@@ -21,11 +22,14 @@ import {
   getRevisionTree,
   getTrackDiff,
   getUploadActivity,
+  repairTrackSidecar,
+  splitTrackStems,
 } from "@/lib/api-client";
 import type {
   AudioAsset,
   FileMetadata,
   GenerationRequestBody,
+  GenerationStatus,
   Project,
   RevisionNode,
   Track,
@@ -49,6 +53,8 @@ export const qk = {
   project: (id: string) => [...qk.all, "project", id] as const,
   projectTrack: (projectId: string, trackId: string) =>
     [...qk.all, "project", projectId, "track", trackId] as const,
+  generationStatus: (projectId: string, trackId: string) =>
+    [...qk.all, "project", projectId, "generation", trackId] as const,
   revisions: (projectId: string) =>
     [...qk.all, "project", projectId, "revisions"] as const,
   compare: (projectId: string, a: string, b: string) =>
@@ -192,6 +198,22 @@ export function useGenerate(projectId: string) {
       qc.invalidateQueries({ queryKey: qk.project(projectId) });
       qc.invalidateQueries({ queryKey: qk.projectAssets(projectId) });
       qc.invalidateQueries({ queryKey: qk.projects() });
+      qc.invalidateQueries({ queryKey: qk.library() });
+    },
+  });
+}
+
+export function useGenerationStatus(
+  projectId: string,
+  trackId: string | undefined,
+) {
+  return useQuery<GenerationStatus, ApiError>({
+    queryKey: qk.generationStatus(projectId, trackId ?? ""),
+    queryFn: () => getGenerationStatus(projectId, trackId as string),
+    enabled: !!trackId,
+    refetchInterval: (query) => {
+      const state = query.state.data?.state;
+      return state === "queued" || state === "running" ? 2000 : false;
     },
   });
 }
@@ -227,6 +249,29 @@ export function useCompare(
     queryKey: qk.compare(projectId, a ?? "", b ?? ""),
     queryFn: () => getTrackDiff(projectId, a as string, b as string),
     enabled,
+  });
+}
+
+export function useRepairTrackSidecar(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (trackId: string) => repairTrackSidecar(projectId, trackId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.revisions(projectId) });
+      qc.invalidateQueries({ queryKey: qk.projectAssets(projectId) });
+      qc.invalidateQueries({ queryKey: qk.library() });
+    },
+  });
+}
+
+export function useSplitTrackStems(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (trackId: string) => splitTrackStems(projectId, trackId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.revisions(projectId) });
+      qc.invalidateQueries({ queryKey: qk.projectAssets(projectId) });
+    },
   });
 }
 

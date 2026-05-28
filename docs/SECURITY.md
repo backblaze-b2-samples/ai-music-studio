@@ -45,14 +45,17 @@ Security principles and implementation for the ai-music-studio.
 
 ## Music Provider Credentials
 
-- Provider API keys (e.g., `SUNO_API_KEY`) are loaded server-side only
+- Provider API keys (`MUSICAPI_API_KEY`) are loaded server-side only
   via `services/api/app/config/settings.py` and are **never** exposed to
   the browser. The browser talks only to `POST /projects/{id}/generate`
   — the backend handles all provider auth.
-- `MUSIC_PROVIDER=mock` (default) requires no external credentials;
-  the sample is runnable end-to-end on a fresh clone.
-- **Tech debt — generation rate limiting.** `POST /projects/{id}/generate`
-  has no per-IP rate limit. With a real (cost-bearing) provider this
-  is a foot-gun. Add a token bucket in `runtime/generation.py` (or sit
-  behind an external rate limiter) before pointing the sample at a
-  paid backend. Tracked in `docs/exec-plans/tech-debt-tracker.md`.
+- The MusicAPI free tier issues credits on signup with no card, so the
+  sample can be run end-to-end without putting a real payment method
+  online — but every generation still spends real credits from your
+  account, so treat the key as a secret and don't commit `.env`.
+- `POST /projects/{id}/generate` has a small per-client token bucket
+  guard. Tune `GENERATION_RATE_LIMIT_CAPACITY` and
+  `GENERATION_RATE_LIMIT_WINDOW_SEC` before exposing a real provider to
+  untrusted users.
+- Optional bearer-token auth is available through `STUDIO_AUTH_TOKEN`.
+  Leaving it empty keeps local development single-user and open.

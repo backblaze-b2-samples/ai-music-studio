@@ -53,7 +53,7 @@ RFC 5987–encoded filename so non-ASCII names survive the round trip.
   1. Validate `key` against `AUDIO_KEY_RE`
   2. HEAD the key to 404 cleanly on a listed-but-missing artifact
   3. Mint the inline / attachment URL with the same 10-min expiry
-- Stems are presigned via the same project-scoped helpers when they exist (today: list_stems is wired; split_stems is `NotImplementedError` — see [Stems](stems.md)).
+- Stems are presigned via the same project-scoped helpers when they exist; generation depends on optional `STEM_SPLITTER_COMMAND` configuration — see [Stems](stems.md).
 
 ## Edge Cases
 - **Track sidecar missing** -> 404 "Track not found"

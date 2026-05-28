@@ -26,6 +26,7 @@ from app.runtime import (  # noqa: E402
     metrics,
     projects,
     revisions,
+    stems,
     upload,
 )
 
@@ -44,6 +45,13 @@ REQUIRED_B2_SETTINGS = (
     ("b2_region", "B2_REGION"),
 )
 
+# Music-provider keys are validated alongside B2 because the sample's
+# Generate flow is broken without one — failing at startup beats a 500
+# on the first user click.
+REQUIRED_PROVIDER_SETTINGS = (
+    ("musicapi_api_key", "MUSICAPI_API_KEY"),
+)
+
 # Exact placeholder strings shipped in .env.example. If a user copied
 # the example and didn't edit it, Settings will pass the "non-empty"
 # check above but every B2 call will still 403. Catch that here.
@@ -53,33 +61,35 @@ PLACEHOLDER_VALUES = frozenset({
     "your_key_id",
     "your_application_key",
     "your-bucket-name",
+    "your_musicapi_api_key",
 })
 
 
 @asynccontextmanager
 async def lifespan(_app: "FastAPI"):
+    required = REQUIRED_B2_SETTINGS + REQUIRED_PROVIDER_SETTINGS
     missing = [
         env_name
-        for attr, env_name in REQUIRED_B2_SETTINGS
+        for attr, env_name in required
         if not getattr(settings, attr)
     ]
     if missing:
         raise RuntimeError(
-            "Missing required B2 configuration: "
+            "Missing required configuration: "
             + ", ".join(missing)
             + f". Add them to {REPO_ROOT_ENV} (see .env.example) and restart."
         )
 
     placeholders = [
         env_name
-        for attr, env_name in REQUIRED_B2_SETTINGS
+        for attr, env_name in required
         if getattr(settings, attr) in PLACEHOLDER_VALUES
     ]
     if placeholders:
         raise RuntimeError(
-            "B2 configuration still has placeholder values: "
+            "Configuration still has placeholder values: "
             + ", ".join(placeholders)
-            + f". Edit {REPO_ROOT_ENV} with your real B2 credentials and restart."
+            + f". Edit {REPO_ROOT_ENV} with your real credentials and restart."
         )
     yield
 
@@ -142,4 +152,5 @@ app.include_router(files.router, tags=["files"])
 app.include_router(projects.router, tags=["projects"])
 app.include_router(generation.router, tags=["generation"])
 app.include_router(revisions.router, tags=["revisions"])
+app.include_router(stems.router, tags=["stems"])
 app.include_router(metrics.router, tags=["metrics"])

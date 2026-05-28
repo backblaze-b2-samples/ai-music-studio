@@ -10,23 +10,37 @@ project manifests live under a stable `projects/<project-id>/…` prefix
 in **[Backblaze B2](https://www.backblaze.com/sign-up/ai-cloud-storage?utm_source=github&utm_medium=referral&utm_campaign=ai_artifacts&utm_content=b2ai-ai-music-studio)**
 via the S3-compatible API — already integrated.
 
-**What you get out of the box:**
+## A Look at the App
+
+**Dashboard — totals, daily generation activity, recent tracks**
+
+![Dashboard with tracks, total duration, audio storage, upload activity chart, and recent tracks table](docs/images/dashboard.png)
+
+**Studio — prompt + style + avoid + instrumental toggle**
+
+![Studio generate-a-track form for a Lo-fi study project, with prompt, style, avoid, and an Instrumental toggle](docs/images/generate.png)
+
+**Revision tree — every regeneration, restyle, and extend as a node**
+
+![Revision tree for the Lo-fi study project showing four nodes with Play, Download, Branch, and Compare A/B controls](docs/images/revision-tree.png)
+
+**Compare A/B — side-by-side players with a prompt/controls/audio-metadata diff**
+
+![Compare tracks dialog showing two tracks side-by-side with a field-by-field same/different diff](docs/images/compare.png)
+
+## What the sample demonstrates:
 - `/projects` — create projects, see every one's revision tree, branch, compare A/B
 - `/projects/[id]` — prompt + style + duration form, "generating…" state, currently-selected-track player, Project Files tab scoped to `projects/<id>/`
 - `/library` — cross-project Track Library: every generated track in one grid, with inline playback, download, and delete
-- `/files` — full B2 bucket explorer (tree view, preview, download, delete) — unchanged from the underlying starter
+- `/files` — full B2 bucket explorer (tree view, preview, download, delete)
 - `/` (Dashboard) — total tracks, total minutes generated, daily generation activity, format breakdown
-- A `MusicProvider` interface with a built-in `MockMusicProvider` (returns a pre-baked WAV from `services/api/app/repo/_mock_tracks/`) so the sample is runnable end-to-end with **zero external credentials**. Drop in a `SunoMusicProvider` (stub included) when you're ready to plug into the real Suno API.
+- A `MusicProvider` interface with a `MusicApiProvider` wired to [musicapi.ai](https://musicapi.ai) — a Suno-compatible REST API that ships **free credits on signup with no credit card**, so you can generate real tracks end-to-end on a fresh clone.
 - FastAPI backend with strict layered architecture (`types -> config -> repo -> service -> runtime`) and structural tests that enforce it
-- Agent-optimized docs — your AI coding agent can read the repo and start contributing immediately
-
-> **Screenshots TBD** — sample is runnable; capture once UI is live.
-> (The starter's `docs/images/{dashboard,library}.png` were removed because
-> they showed the underlying starter's UI, not music-studio's.)
+- Agent-optimized docs — AGENTS.md plus per-feature docs co-located with the code
 
 ## Agent-First Architecture
 
-This repo is optimized for coding agents. Point your agent at it and start building.
+This sample is structured so coding agents can read and reason about it without external context.
 
 The structure follows the principle that **repository knowledge is the system of record**. Anything an agent can't access in-context doesn't exist — so everything it needs to reason about the codebase is versioned, co-located, and discoverable from the repo itself.
 
@@ -65,33 +79,14 @@ docs/
 | Docs updated with code | Same-PR requirement prevents documentation rot |
 | Structured observability | JSON logging, `/metrics` endpoint, request tracing |
 
-## Quick Start
+## Run It Locally
 
-You need: Node.js >= 20, pnpm >= 9, Python >= 3.11, and a free **[Backblaze B2 account](https://www.backblaze.com/sign-up/ai-cloud-storage?utm_source=github&utm_medium=referral&utm_campaign=ai_artifacts&utm_content=b2ai-ai-music-studio)**.
-
-### Start a new project
-
-**Option 1: GitHub Template (recommended)**
-
-Click the green **"Use this template"** button at the top of this repo, name your project, then:
+You need: Node.js >= 20, pnpm >= 9, Python >= 3.11, a free **[Backblaze B2 account](https://www.backblaze.com/sign-up/ai-cloud-storage?utm_source=github&utm_medium=referral&utm_campaign=ai_artifacts&utm_content=b2ai-ai-music-studio)**, and a free **[MusicAPI account](https://musicapi.ai)** for music generation.
 
 ```bash
-git clone https://github.com/yourorg/my-music-app.git
-cd my-music-app
+git clone https://github.com/backblaze-b2-samples/ai-music-studio.git
+cd ai-music-studio
 ```
-
-**Option 2: Clone and reinitialize**
-
-```bash
-git clone https://github.com/backblaze-b2-samples/ai-music-studio.git my-music-app
-cd my-music-app
-rm -rf .git
-git init
-git add .
-git commit -m "Initial commit from ai-music-studio"
-```
-
-### Setup
 
 **1. Install dependencies**
 
@@ -108,7 +103,7 @@ pip install -r requirements.txt
 cd ../..
 ```
 
-**3. Add your B2 credentials and pick a music provider**
+**3. Add your B2 credentials**
 
 Set up your local `.env`:
 
@@ -116,11 +111,7 @@ Set up your local `.env`:
 cp .env.example .env
 ```
 
-Open `.env`. The `MUSIC_PROVIDER=mock` default lets you run the sample
-end-to-end with no external generation-API credentials; only the B2
-keys are required.
-
-Then head to the [Backblaze B2 dashboard](https://secure.backblaze.com/b2_buckets.htm?utm_source=github&utm_medium=referral&utm_campaign=ai_artifacts&utm_content=b2ai-ai-music-studio) and:
+Head to the [Backblaze B2 dashboard](https://secure.backblaze.com/b2_buckets.htm?utm_source=github&utm_medium=referral&utm_campaign=ai_artifacts&utm_content=b2ai-ai-music-studio) and:
 
 1. **Create a bucket.** B2 will show three values — paste each into `.env`:
    - **Bucket Unique Name** -> `B2_BUCKET_NAME`
@@ -132,7 +123,21 @@ Then head to the [Backblaze B2 dashboard](https://secure.backblaze.com/b2_bucket
 
 > Want a walkthrough? See the docs for [creating a bucket](https://www.backblaze.com/docs/cloud-storage-create-and-manage-buckets?utm_source=github&utm_medium=referral&utm_campaign=ai_artifacts&utm_content=b2ai-ai-music-studio) and [creating app keys](https://www.backblaze.com/docs/cloud-storage-create-and-manage-app-keys?utm_source=github&utm_medium=referral&utm_campaign=ai_artifacts&utm_content=b2ai-ai-music-studio).
 
-**4. Run it**
+**4. Get a free MusicAPI key**
+
+Music generation is powered by [MusicAPI](https://musicapi.ai) — a
+Suno-compatible REST API with **free credits on signup, no credit
+card required**.
+
+1. Sign up at [musicapi.ai](https://musicapi.ai).
+2. Open the dashboard and copy your API key.
+3. Paste it into `.env` as `MUSICAPI_API_KEY`.
+
+The key is loaded server-side only — it's never sent to the browser.
+Treat it like any other secret (it's already covered by `.gitignore`
+because `.env` is ignored).
+
+**5. Run it**
 
 ```bash
 pnpm dev
@@ -140,15 +145,16 @@ pnpm dev
 
 That's it. Frontend at `localhost:3000`, API at `localhost:8000`. Open
 `/projects`, create a project, write a prompt, hit Generate — the
-`MockMusicProvider` returns a pre-baked tone in ~1s and the new track
-shows up in the revision tree.
+backend submits the job to MusicAPI, polls until it completes
+(typically 1–3 min), saves the resulting MP3 to your B2 bucket, and
+the new track shows up in the revision tree.
 
 `pnpm dev` runs `pnpm doctor` first — a preflight check that catches the common setup gotchas (wrong Node/Python version, missing venv, missing or placeholder `.env`, ports already taken) and tells you exactly how to fix each one. Run it standalone any time with `pnpm doctor`.
 
 ## Core Features
 
 - [Projects](docs/features/projects.md) — create / list / archive / delete; every project lives at `projects/<id>/project.json` in B2
-- [Generation](docs/features/generation.md) — prompt + style + duration → `projects/<id>/tracks/<track-id>/audio.<ext>`; `MusicProvider` abstraction with `MockMusicProvider` (default) and `SunoMusicProvider` (stub)
+- [Generation](docs/features/generation.md) — prompt + style + duration → `projects/<id>/tracks/<track-id>/audio.<ext>`; `MusicProvider` abstraction with `MusicApiProvider` calling [musicapi.ai](https://musicapi.ai)
 - [Revision History](docs/features/revision-history.md) — every regeneration is a child node of its parent track; the tree is reconstructed from `track.json` sidecars in B2
 - [Compare](docs/features/revision-history.md) — A/B two tracks: dual audio players + a diff list (prompt / style / duration / audio-metadata)
 - [Stems (placeholder)](docs/features/stems.md) — data model live, generation stubbed (`NotImplementedError`); UI surfaces a disabled "Generate Stems (coming soon)" button
@@ -158,7 +164,7 @@ shows up in the revision tree.
 - [Bucket Explorer](docs/features/file-browser.md) — full B2 bucket tree view (unchanged from the underlying starter)
 - [Dashboard](docs/features/dashboard.md) — total tracks, total minutes generated, generation activity chart, recent tracks table
 
-Plus the cross-cutting essentials inherited from the underlying starter:
+Plus the cross-cutting essentials:
 - Inline error handling — fetch failures surface *what's wrong* (API offline, 401, 5xx) and offer a Retry
 - Single-source config — one `.env` at the repo root powers both API and web app, validated at startup
 - Centralized data layer — every fetch goes through TanStack Query hooks in `apps/web/src/lib/queries.ts`
@@ -172,7 +178,7 @@ Plus the cross-cutting essentials inherited from the underlying starter:
 - TypeScript, Next.js 16, React 19, Tailwind v4, shadcn/ui, Recharts
 - TanStack Query — caching, dedup, retry, stale-while-revalidate for every fetch
 - Python 3.11+, FastAPI, boto3, Pydantic v2, `mutagen` (pure-Python audio metadata)
-- Suno-compatible provider abstraction — `mock` ships in-the-box; `suno` slot is a one-class swap
+- Pluggable `MusicProvider` abstraction — `MusicApiProvider` wired to [musicapi.ai](https://musicapi.ai) (Suno-compatible, free tier on signup)
 - Backblaze B2 (S3-compatible object storage)
 - pnpm workspaces (monorepo)
 

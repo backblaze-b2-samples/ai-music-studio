@@ -18,6 +18,7 @@ import {
   getTrackPlaybackUrl,
 } from "@/lib/api-client";
 import { useCompare } from "@/lib/queries";
+import { formatDuration } from "@/lib/utils";
 import type { Track } from "@ai-music-studio/shared";
 
 interface CompareDialogProps {
@@ -37,7 +38,7 @@ export function CompareDialog({ projectId, a, b, onClose }: CompareDialogProps) 
         <DialogHeader>
           <DialogTitle>Compare tracks</DialogTitle>
           <DialogDescription>
-            Side-by-side A/B with prompt, style, duration, and audio-metadata diffs.
+            Side-by-side A/B with prompt, controls, and audio-metadata diffs.
           </DialogDescription>
         </DialogHeader>
 
@@ -54,6 +55,11 @@ export function CompareDialog({ projectId, a, b, onClose }: CompareDialogProps) 
             <div className="col-span-2 text-xs text-muted-foreground border-t border-border pt-3">
               <DiffRow label="Prompt" changed={data.prompt_changed} />
               <DiffRow label="Style" changed={data.style_changed} />
+              <DiffRow label="Avoid" changed={data.negative_tags_changed} />
+              <DiffRow label="Instrumental" changed={data.instrumental_changed} />
+              <DiffRow label="Mode" changed={data.generation_mode_changed} />
+              <DiffRow label="Extend point" changed={data.continue_at_changed} />
+              <DiffRow label="Source influence" changed={data.audio_weight_changed} />
               <DiffRow label="Duration" changed={data.duration_changed} />
               <DiffRow label="Audio metadata" changed={data.audio_metadata_changed} />
             </div>
@@ -85,6 +91,13 @@ function DiffRow({ label, changed }: { label: string; changed: boolean }) {
       </span>
     </div>
   );
+}
+
+function modeLabel(mode: Track["generation_mode"]): string {
+  if (mode === "new_take") return "New take";
+  if (mode === "extend") return "Extend";
+  if (mode === "restyle") return "Restyle";
+  return "Create";
 }
 
 function TrackPanel({
@@ -127,7 +140,16 @@ function TrackPanel({
       </div>
       <p className="text-xs line-clamp-3">{track.prompt}</p>
       <p className="text-[11px] text-muted-foreground tabular-nums">
-        {track.style ?? "—"} · {track.duration_sec}s
+        {track.style ?? "—"} · {formatDuration(track.audio.duration_ms)}
+      </p>
+      <p className="text-[11px] text-muted-foreground line-clamp-1">
+        {track.make_instrumental ? "Instrumental" : "Vocals allowed"}
+        {track.negative_tags ? ` · Avoid: ${track.negative_tags}` : ""}
+      </p>
+      <p className="text-[11px] text-muted-foreground line-clamp-1">
+        {modeLabel(track.generation_mode)}
+        {track.continue_at_sec !== null ? ` · ${track.continue_at_sec}s` : ""}
+        {track.audio_weight !== null ? ` · ${track.audio_weight}` : ""}
       </p>
       {audioSrc ? (
         <audio controls src={audioSrc} className="w-full h-9" />

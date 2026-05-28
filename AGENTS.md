@@ -31,8 +31,7 @@ services/api/                                FastAPI backend (layered: types/con
   app/repo/b2_client.py                      boto3 — generic file helpers
   app/repo/b2_tracks.py                      track-prefix helpers — list, head, presign, delete, head_track_objects_parallel
   app/repo/b2_projects.py                    project-scoped helpers (put/get JSON, list, delete tree, presign)
-  app/repo/music_provider.py                 MusicProvider interface + MockMusicProvider + SunoMusicProvider (stub)
-  app/repo/_mock_tracks/                     pre-baked WAVs for the mock provider (committed)
+  app/repo/music_provider.py                 MusicProvider interface + MusicApiProvider (calls musicapi.ai)
   app/types/project.py                       Project, Track, Stem, GenerationRequest/Status, RevisionNode, TrackDiff
   app/types/library.py                       AudioAsset
 packages/shared/                             Shared TypeScript types (mirrors backend Pydantic)

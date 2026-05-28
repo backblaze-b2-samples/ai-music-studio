@@ -152,6 +152,16 @@ def get_file_metadata(key: str) -> FileMetadata | None:
     )
 
 
+def download_file(key: str) -> bytes:
+    """Download an object from B2 into memory."""
+    client = get_s3_client()
+    try:
+        response = client.get_object(Bucket=settings.b2_bucket_name, Key=key)
+    except ClientError as e:
+        raise RuntimeError(f"B2 download failed for '{key}': {e}") from e
+    return response["Body"].read()
+
+
 def delete_file(key: str) -> None:
     """Delete an object from B2. Raises RuntimeError on failure."""
     client = get_s3_client()

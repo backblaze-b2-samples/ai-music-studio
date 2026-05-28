@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Download, Play, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -110,12 +111,24 @@ export function AudioAssetCard({
               />
             )}
             <div className="min-w-0 flex-1">
-              <p className="line-clamp-2 text-sm font-medium font-mono">
-                {asset.title_preview ?? asset.key.split("/").pop()}
-              </p>
+              <div className="flex items-start gap-2">
+                <p className="line-clamp-2 min-w-0 text-sm font-medium font-mono">
+                  {asset.title_preview ?? asset.key.split("/").pop()}
+                </p>
+                {asset.project_id && (
+                  <Badge variant="secondary" className="mt-0.5 h-5 shrink-0 px-1.5 text-[10px]">
+                    Project
+                  </Badge>
+                )}
+              </div>
               <p className="mt-1 text-xs text-muted-foreground">
                 {metaParts.join(" · ")}
               </p>
+              {asset.project_id && (
+                <p className="mt-1 truncate text-[11px] text-muted-foreground font-mono">
+                  {asset.project_id.slice(0, 8)} / {asset.track_id?.slice(0, 8)}
+                </p>
+              )}
             </div>
           </div>
 

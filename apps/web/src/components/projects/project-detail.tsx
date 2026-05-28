@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -15,10 +16,13 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { GenerateForm } from "@/components/generation/generate-form";
+import type { PendingGeneration } from "@/components/generation/pending-generation";
 import { CompareDialog } from "@/components/revision-tree/compare-dialog";
 import { RevisionTree } from "@/components/revision-tree/revision-tree";
 import { ProjectAssetExplorer } from "@/components/projects/project-asset-explorer";
-import { useProject } from "@/lib/queries";
+import { UploadForm } from "@/components/upload/upload-form";
+import { qk, useGenerationStatus, useProject } from "@/lib/queries";
+import type { Track } from "@ai-music-studio/shared";
 
 interface ProjectDetailProps {
   projectId: string;
@@ -27,10 +31,48 @@ interface ProjectDetailProps {
 export function ProjectDetail({ projectId }: ProjectDetailProps) {
   const { data, isLoading, error, refetch } = useProject(projectId);
   // Branching seed: when set, the next generation lands as a child of this track.
-  const [branchFromTrackId, setBranchFromTrackId] = useState<string | null>(null);
+  const [branchFromTrack, setBranchFromTrack] = useState<Track | null>(null);
   // Compare seed: a + b
   const [compareA, setCompareA] = useState<string | null>(null);
   const [compareB, setCompareB] = useState<string | null>(null);
+  const [pendingGeneration, setPendingGeneration] =
+    useState<PendingGeneration | null>(null);
+  const qc = useQueryClient();
+  const status = useGenerationStatus(
+    projectId,
+    pendingGeneration?.trackId ?? undefined,
+  );
+
+  useEffect(() => {
+    const snapshot = status.data;
+    if (!pendingGeneration || !snapshot) return;
+    if (snapshot.state === "failed") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPendingGeneration((current) =>
+        current?.id === pendingGeneration.id
+          ? { ...current, state: "failed", error: snapshot.error }
+          : current,
+      );
+    }
+    if (snapshot.state === "succeeded") {
+      setPendingGeneration(null);
+      setBranchFromTrack(null);
+      qc.invalidateQueries({ queryKey: qk.revisions(projectId) });
+      qc.invalidateQueries({ queryKey: qk.project(projectId) });
+      qc.invalidateQueries({ queryKey: qk.projectAssets(projectId) });
+      qc.invalidateQueries({ queryKey: qk.library() });
+    }
+  }, [pendingGeneration, projectId, qc, status.data]);
+
+  const pickCompareA = (trackId: string) => {
+    setCompareA((current) => (current === trackId ? null : trackId));
+    setCompareB((current) => (current === trackId ? null : current));
+  };
+
+  const pickCompareB = (trackId: string) => {
+    setCompareB((current) => (current === trackId ? null : trackId));
+    setCompareA((current) => (current === trackId ? null : current));
+  };
 
   if (isLoading) {
     return (
@@ -85,16 +127,32 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
 
         <TabsContent value="studio" className="space-y-6 pt-4">
           <GenerateForm
+            key={branchFromTrack?.track_id ?? "root"}
             projectId={projectId}
-            parentTrackId={branchFromTrackId}
-            onClearBranch={() => setBranchFromTrackId(null)}
+            parentTrack={branchFromTrack}
+            onClearBranch={() => setBranchFromTrack(null)}
+            onGenerationStart={setPendingGeneration}
+            onGenerationSuccess={(id, trackId) => {
+              setPendingGeneration((current) =>
+                current?.id === id ? { ...current, trackId, state: "running" } : current,
+              );
+            }}
+            onGenerationFailed={(id, errorMessage) => {
+              setPendingGeneration((current) =>
+                current?.id === id
+                  ? { ...current, state: "failed", error: errorMessage }
+                  : current,
+              );
+            }}
           />
 
           <RevisionTree
             projectId={projectId}
-            onBranch={(trackId) => setBranchFromTrackId(trackId)}
-            onPickCompareA={(trackId) => setCompareA(trackId)}
-            onPickCompareB={(trackId) => setCompareB(trackId)}
+            pendingGeneration={pendingGeneration}
+            onDismissPendingGeneration={() => setPendingGeneration(null)}
+            onBranch={(track) => setBranchFromTrack(track)}
+            onPickCompareA={pickCompareA}
+            onPickCompareB={pickCompareB}
             compareA={compareA}
             compareB={compareB}
           />
@@ -110,7 +168,8 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
           />
         </TabsContent>
 
-        <TabsContent value="files" className="pt-4">
+        <TabsContent value="files" className="space-y-4 pt-4">
+          <UploadForm projectId={projectId} title="Reference Clips" />
           <ProjectAssetExplorer projectId={projectId} />
         </TabsContent>
       </Tabs>

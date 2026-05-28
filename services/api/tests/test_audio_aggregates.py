@@ -33,7 +33,7 @@ def test_aggregates_sum_duration_from_head_metadata(monkeypatch):
         "audio/2026/05/c--ghi.flac": {"Metadata": {"duration-ms": "500"}},
     }
     monkeypatch.setattr(
-        library_service, "list_audio_objects", lambda max_keys: objs
+        library_service, "list_library_objects", lambda max_keys: objs
     )
     monkeypatch.setattr(
         library_service, "head_track_objects_parallel", lambda keys: heads
@@ -57,7 +57,7 @@ def test_aggregates_format_counts_include_other_bucket(monkeypatch):
         _audio_obj("audio/legacy/noext"),
     ]
     monkeypatch.setattr(
-        library_service, "list_audio_objects", lambda max_keys: objs
+        library_service, "list_library_objects", lambda max_keys: objs
     )
     monkeypatch.setattr(
         library_service, "head_track_objects_parallel", lambda keys: {}
@@ -90,7 +90,7 @@ def test_aggregates_handle_objects_without_stamped_metadata(monkeypatch):
         # `audio/legacy/seed.wav` deliberately omitted to simulate a HEAD miss.
     }
     monkeypatch.setattr(
-        library_service, "list_audio_objects", lambda max_keys: objs
+        library_service, "list_library_objects", lambda max_keys: objs
     )
     monkeypatch.setattr(
         library_service, "head_track_objects_parallel", lambda keys: heads
@@ -112,7 +112,7 @@ def test_aggregates_empty_bucket_returns_zeros(monkeypatch):
         head_calls.append(list(keys))
         return {}
 
-    monkeypatch.setattr(library_service, "list_audio_objects", lambda max_keys: [])
+    monkeypatch.setattr(library_service, "list_library_objects", lambda max_keys: [])
     monkeypatch.setattr(library_service, "head_track_objects_parallel", _head)
 
     result = library_service.get_audio_aggregates()
@@ -123,3 +123,42 @@ def test_aggregates_empty_bucket_returns_zeros(monkeypatch):
     assert result["formats"] == {}
     # Skip the HEAD fanout entirely when there's nothing to head.
     assert head_calls == []
+
+
+def test_library_lists_project_scoped_tracks(monkeypatch):
+    project_id = "123e4567-e89b-42d3-a456-426614174000"
+    project_key = f"projects/{project_id}/tracks/track-1/audio.mp3"
+    older = datetime(2026, 5, 21, tzinfo=UTC)
+    newer = datetime(2026, 5, 22, tzinfo=UTC)
+    monkeypatch.setattr(
+        library_service,
+        "list_audio_objects",
+        lambda max_keys: [
+            {"Key": "audio/legacy/seed.wav", "Size": 100, "LastModified": older}
+        ],
+    )
+    monkeypatch.setattr(
+        library_service,
+        "list_project_keys",
+        lambda prefix, max_keys: [
+            {"Key": project_key, "Size": 200, "LastModified": newer},
+            {
+                "Key": f"projects/{project_id}/tracks/track-1/track.json",
+                "Size": 50,
+                "LastModified": older,
+            },
+        ],
+    )
+    monkeypatch.setattr(
+        library_service,
+        "head_track_objects_parallel",
+        lambda keys: {project_key: {"Metadata": {"duration-ms": "90000"}}},
+    )
+
+    assets = library_service.list_audio_assets()
+
+    assert assets[0].key == project_key
+    assert assets[0].project_id == project_id
+    assert assets[0].track_id == "track-1"
+    assert assets[0].source == "project"
+    assert assets[0].duration_ms == 90000

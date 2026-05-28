@@ -2,9 +2,9 @@
 # Feature: Track Library
 
 ## Purpose
-List, play back, download, and delete every audio asset stored under
-the `audio/` prefix in B2 — sourced entirely from S3 list/head/delete so
-there is no application database. The Track Library is the
+List, play back, download, and delete every audio asset stored under the
+legacy `audio/` prefix plus generated project tracks under
+`projects/<id>/tracks/<track-id>/audio.<ext>`. The Track Library is the
 **cross-project** view: it doesn't filter by project. For a per-project
 view, see [Project Asset Explorer](project-asset-explorer.md).
 
@@ -33,7 +33,7 @@ view, see [Project Asset Explorer](project-asset-explorer.md).
 
 ## Inputs
 - `limit: int` (query param on `GET /library`, default 100, max 500)
-- `key: string` (path param on `/library/{key}/...`) — must match `^audio/[A-Za-z0-9_][A-Za-z0-9_./\-]*\.(wav|mp3|flac|ogg|m4a|aac|opus)$` (case-insensitive) and contain no `..` or `//`
+- `key: string` (path param on `/library/{key}/...`) — must be either an `audio/...` asset or a generated `projects/<id>/tracks/<track-id>/audio.<ext>` asset, with supported audio extension and no `..` / `//`
 - `POST /library/bulk-delete` body: `{ keys: string[] }` (1-1000 keys, each matching the same regex)
 
 ## Outputs
@@ -45,18 +45,12 @@ view, see [Project Asset Explorer](project-asset-explorer.md).
 - Side effects: TanStack Query invalidates library + stats on delete
 
 ## Library vs. Project Asset Explorer vs. Files
-- **Track Library** (`/library`) — every object under the `audio/` prefix, across all projects. Audio-only UX (playback, waveform, formatted duration).
+- **Track Library** (`/library`) — every legacy `audio/` object plus every generated project track, across all projects. Audio-only UX (playback, waveform, formatted duration).
 - **Project Asset Explorer** (inside a project page) — every object under `projects/<id>/…`, scoped to one project. Includes manifests, sidecars, and stems.
 - **Files** (`/files`) — full B2 bucket explorer, every object regardless of prefix. Ops-style.
 
-In v1 the project-scoped tracks (`projects/<id>/tracks/<id>/audio.<ext>`)
-don't show up in `/library` because the Library only scans `audio/`.
-Tracking this in tech debt — a future iteration may broaden the Library
-listing to include project-scoped tracks (with a project chip on each
-card).
-
 ## Flow
-- `GET /library` -> `list_objects_v2(Prefix="audio/")` -> sort newest-first -> fan out HEADs via `head_track_objects_parallel` (10 workers) to pull `duration_ms`, `sample_rate`, `channels`, `bit_depth`, `codec` from `x-amz-meta-*` -> return
+- `GET /library` -> list `audio/` and generated project-track audio -> sort newest-first -> fan out HEADs via `head_track_objects_parallel` (10 workers) to pull `duration_ms`, `sample_rate`, `channels`, `bit_depth`, `codec` from `x-amz-meta-*` -> return
 - Playback / download -> validate key -> HEAD for existence -> mint presigned URL -> return
 - Delete -> validate -> `delete_object` -> 200
 - Bulk delete -> validate every key, deduplicate, one `DeleteObjects` call (chunks of 1000) -> `{ deleted, errors }`
@@ -75,7 +69,7 @@ card).
 - Error: `ErrorState` with retry
 
 ## Verification
-- Test files: `services/api/tests/test_bulk_delete.py` (library half — happy path, non-audio prefix rejection, path-traversal rejection, partial errors)
+- Test files: `services/api/tests/test_bulk_delete.py`, `services/api/tests/test_audio_aggregates.py`
 - Quick verify command: `pnpm test:api`
 - Full verify command: `pnpm lint && pnpm lint:api && pnpm test:api && pnpm check:structure`
 

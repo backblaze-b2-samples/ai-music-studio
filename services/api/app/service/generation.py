@@ -1,6 +1,6 @@
 """Generation service — orchestrates provider call, B2 writes, sidecar.
 
-Flow (synchronous; mock provider is instant):
+Flow (synchronous):
 
   1. Validate request and project id.
   2. Call `get_provider().generate(...)` → returns audio bytes + provider
@@ -12,9 +12,10 @@ Flow (synchronous; mock provider is instant):
   4. Build a `Track` model and write its `track.json` sidecar.
   5. Return the `Track` (the runtime layer wraps it in a 200 response).
 
-The whole thing is synchronous because the mock provider returns
-instantly; a real Suno provider that takes 60 s will need to bump this
-through a background worker (tracked in `docs/exec-plans/tech-debt-tracker.md`).
+The whole thing is synchronous — the MusicApi provider polls upstream
+internally and can take 1-3 min, which blocks the FastAPI request that
+whole time. Moving generation to a background worker is tracked in
+`docs/exec-plans/tech-debt-tracker.md`.
 """
 
 from __future__ import annotations
@@ -34,6 +35,7 @@ from app.service.projects import (
     project_prefix,
     validate_project_id,
 )
+from app.service.revisions import TrackNotFound, get_track
 from app.types import (
     AudioAsset,
     GenerationRequest,
@@ -49,6 +51,7 @@ from app.types.formatting import humanize_bytes
 # level: if the inbound request's duration equals the Pydantic default,
 # we swap in the settings value before calling the provider.
 _GENERATION_REQUEST_FIELD_DEFAULT_DURATION_SEC = 30
+_RESTYLE_DEFAULT_AUDIO_WEIGHT = 0.6
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +88,57 @@ def _content_type_for(ext: str) -> str:
     return "application/octet-stream"
 
 
+def _default_continue_at_sec(parent: Track | None) -> int:
+    if parent and parent.audio.duration_ms:
+        return max(0, round(parent.audio.duration_ms / 1000))
+    return 0
+
+
+def _resolve_generation_context(
+    project_id: str,
+    request: GenerationRequest,
+) -> tuple[str, Track | None, str | None, int | None, float | None]:
+    mode = request.generation_mode
+    if request.parent_track_id and mode == "create":
+        mode = "new_take"
+    if mode != "create" and not request.parent_track_id:
+        raise GenerationError(f"{mode} requires a parent track", status_code=400)
+
+    parent: Track | None = None
+    if request.parent_track_id:
+        try:
+            parent = get_track(project_id, request.parent_track_id)
+        except TrackNotFound as e:
+            raise GenerationError(e.detail, status_code=404) from e
+
+    parent_clip_id: str | None = None
+    if mode in {"extend", "restyle"}:
+        parent_clip_id = parent.provider_clip_id if parent else None
+        if not parent_clip_id:
+            raise GenerationError(
+                "Parent track has no provider clip id; generate a fresh MusicAPI "
+                "track before using Extend or Restyle.",
+                status_code=400,
+            )
+
+    continue_at = None
+    if mode == "extend":
+        continue_at = (
+            request.continue_at_sec
+            if request.continue_at_sec is not None
+            else _default_continue_at_sec(parent)
+        )
+
+    audio_weight = None
+    if mode == "restyle":
+        audio_weight = (
+            request.audio_weight
+            if request.audio_weight is not None
+            else _RESTYLE_DEFAULT_AUDIO_WEIGHT
+        )
+    return mode, parent, parent_clip_id, continue_at, audio_weight
+
+
 def _increment_track_count(project_id: str) -> None:
     """Bump `track_count` on the manifest. Best-effort — a write failure
     here doesn't invalidate the just-written track; we log and move on."""
@@ -107,6 +161,7 @@ def generate_track(
     project_id: str,
     request: GenerationRequest,
     provider: MusicProvider | None = None,
+    track_id: str | None = None,
 ) -> Track:
     """Run a generation request end-to-end and return the persisted Track.
 
@@ -128,12 +183,21 @@ def generate_track(
     duration_sec = request.duration_sec
     if duration_sec == _GENERATION_REQUEST_FIELD_DEFAULT_DURATION_SEC:
         duration_sec = settings.music_provider_default_duration_sec
+    mode, _parent, parent_clip_id, continue_at_sec, audio_weight = (
+        _resolve_generation_context(project_id, request)
+    )
 
     started = datetime.now(UTC)
     try:
         result: GenerationResult = selected.generate(
             prompt=request.prompt,
             style=request.style,
+            negative_tags=request.negative_tags,
+            make_instrumental=request.make_instrumental,
+            generation_mode=mode,
+            parent_provider_clip_id=parent_clip_id,
+            continue_at_sec=continue_at_sec,
+            audio_weight=audio_weight,
             duration_sec=duration_sec,
         )
     except NotImplementedError as e:
@@ -142,7 +206,8 @@ def generate_track(
         logger.exception("Provider %s failed", selected.name)
         raise GenerationError(f"Provider error: {e}", status_code=502) from e
 
-    audio_key = _track_audio_key(project_id, result.track_id, result.audio_ext)
+    resolved_track_id = track_id or result.track_id
+    audio_key = _track_audio_key(project_id, resolved_track_id, result.audio_ext)
     content_type = _content_type_for(result.audio_ext)
 
     # Extract metadata BEFORE the put so we can stamp duration/etc onto
@@ -154,6 +219,19 @@ def generate_track(
     # reconstructible if `track.json` is ever lost (defense in depth).
     if request.parent_track_id:
         s3_meta["parent-track-id"] = request.parent_track_id
+    if request.negative_tags:
+        s3_meta["negative-tags"] = request.negative_tags
+    if request.make_instrumental:
+        s3_meta["make-instrumental"] = "true"
+    s3_meta["generation-mode"] = mode
+    if continue_at_sec is not None:
+        s3_meta["continue-at-sec"] = str(continue_at_sec)
+    if audio_weight is not None:
+        s3_meta["audio-weight"] = str(audio_weight)
+    if result.provider_task_id:
+        s3_meta["provider-task-id"] = result.provider_task_id
+    if result.provider_clip_id:
+        s3_meta["provider-clip-id"] = result.provider_clip_id
     s3_meta["project-id"] = project_id
     s3_meta["provider"] = selected.name
 
@@ -175,16 +253,26 @@ def generate_track(
         channels=detail.channels,
         bit_depth=detail.bit_depth,
         codec=detail.codec,
-        title_preview=f"track-{result.track_id[:8]}.{result.audio_ext}",
+        title_preview=f"track-{resolved_track_id[:8]}.{result.audio_ext}",
+        project_id=project_id,
+        track_id=resolved_track_id,
+        source="project",
     )
 
     track = Track(
-        track_id=result.track_id,
+        track_id=resolved_track_id,
         project_id=project_id,
         prompt=request.prompt,
         style=request.style,
+        negative_tags=request.negative_tags,
+        make_instrumental=request.make_instrumental,
+        generation_mode=mode,
+        continue_at_sec=continue_at_sec,
+        audio_weight=audio_weight,
         duration_sec=duration_sec,
         provider=selected.name,
+        provider_task_id=result.provider_task_id,
+        provider_clip_id=result.provider_clip_id,
         parent_track_id=request.parent_track_id,
         generation_ms=result.generation_ms,
         created_at=started,
@@ -193,14 +281,14 @@ def generate_track(
 
     # Write the per-track sidecar last — its presence is what makes the
     # track "discoverable" by the revision-tree builder.
-    put_json(_track_sidecar_key(project_id, result.track_id), track.model_dump(mode="json"))
+    put_json(_track_sidecar_key(project_id, resolved_track_id), track.model_dump(mode="json"))
 
     _increment_track_count(project_id)
 
     logger.info(
         "Track generated: project=%s track=%s provider=%s parent=%s gen_ms=%s",
         project_id,
-        result.track_id,
+        resolved_track_id,
         selected.name,
         request.parent_track_id,
         result.generation_ms,

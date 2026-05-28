@@ -4,8 +4,10 @@ import type {
   FileMetadata,
   FileUploadResponse,
   GenerationRequestBody,
+  GenerationStatus,
   Project,
   RevisionNode,
+  Stem,
   Track,
   TrackDiff,
   UploadStats,
@@ -145,7 +147,8 @@ export async function bulkDeleteAudioAssets(keys: string[]) {
 
 export function uploadFile(
   file: File,
-  onProgress?: (percent: number) => void
+  onProgress?: (percent: number) => void,
+  path = "/upload",
 ): Promise<FileUploadResponse> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -178,9 +181,17 @@ export function uploadFile(
       reject(new ApiError("Upload aborted", 0)),
     );
 
-    xhr.open("POST", `${API_BASE}/upload`);
+    xhr.open("POST", `${API_BASE}${path}`);
     xhr.send(formData);
   });
+}
+
+export function uploadProjectReference(
+  projectId: string,
+  file: File,
+  onProgress?: (percent: number) => void,
+) {
+  return uploadFile(file, onProgress, `/projects/${projectId}/reference`);
 }
 
 // --- Music-studio: Projects ---
@@ -213,11 +224,17 @@ export async function generateTrack(
   projectId: string,
   body: GenerationRequestBody,
 ) {
-  return apiFetch<Track>(`/projects/${projectId}/generate`, {
+  return apiFetch<GenerationStatus>(`/projects/${projectId}/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+}
+
+export async function getGenerationStatus(projectId: string, trackId: string) {
+  return apiFetch<GenerationStatus>(
+    `/projects/${projectId}/generations/${trackId}`,
+  );
 }
 
 export async function getProjectTrack(projectId: string, trackId: string) {
@@ -236,6 +253,12 @@ export async function getTrackDownloadUrl(projectId: string, trackId: string) {
   );
 }
 
+export async function splitTrackStems(projectId: string, trackId: string) {
+  return apiFetch<Stem[]>(`/projects/${projectId}/tracks/${trackId}/stems`, {
+    method: "POST",
+  });
+}
+
 // --- Music-studio: Revisions / compare ---
 
 export async function getRevisionTree(projectId: string) {
@@ -248,10 +271,15 @@ export async function getTrackDiff(projectId: string, a: string, b: string) {
   );
 }
 
+export async function repairTrackSidecar(projectId: string, trackId: string) {
+  return apiFetch<Track>(`/projects/${projectId}/tracks/${trackId}/repair`, {
+    method: "POST",
+  });
+}
+
 // --- Music-studio: Project asset explorer ---
 
 /** Reuse the bucket explorer's /files endpoint, scoped to a project prefix. */
 export async function getProjectAssets(projectId: string, limit = 200) {
   return getFiles(`projects/${projectId}/`, limit);
 }
-

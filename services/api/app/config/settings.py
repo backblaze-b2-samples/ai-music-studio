@@ -27,11 +27,21 @@ class Settings(BaseSettings):
     # volume in production if you care about surviving restarts.
     download_count_file: str = "data/download_count.json"
 
-    # Music generation provider — `mock` ships in-the-box; `suno` is a
-    # stub. See app/repo/music_provider.py.
-    music_provider: str = "mock"
+    # Music generation provider — only `musicapi` is supported today.
+    # See app/repo/music_provider.py. Sign up at https://musicapi.ai for
+    # a free API key (no card required).
+    music_provider: str = "musicapi"
     music_provider_default_duration_sec: int = 30
-    suno_api_key: str = ""
+    musicapi_api_key: str = ""
+
+    # Cost guard for generation endpoints: N requests per client per window.
+    generation_rate_limit_capacity: int = 5
+    generation_rate_limit_window_sec: int = 60
+
+    # Optional API auth. Empty token keeps local development open.
+    studio_auth_token: str = ""
+    studio_default_owner_id: str = "local"
+    stem_splitter_command: str = ""
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

@@ -1,20 +1,26 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { FileRejection } from "react-dropzone";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dropzone } from "./dropzone";
 import { UploadProgress, type UploadItem } from "./upload-progress";
-import { uploadFile } from "@/lib/api-client";
+import { uploadFile, uploadProjectReference } from "@/lib/api-client";
 import { humanizeBytes } from "@/lib/utils";
-import { useRefresh } from "@/lib/refresh-context";
+import { qk } from "@/lib/queries";
 
-export function UploadForm() {
+interface UploadFormProps {
+  projectId?: string;
+  title?: string;
+}
+
+export function UploadForm({ projectId, title = "Upload Audio" }: UploadFormProps) {
   const [items, setItems] = useState<UploadItem[]>([]);
   const [uploading, setUploading] = useState(false);
-  const { triggerRefresh } = useRefresh();
+  const qc = useQueryClient();
 
   const handleFilesRejected = useCallback((rejections: FileRejection[]) => {
     for (const rejection of rejections) {
@@ -43,13 +49,18 @@ export function UploadForm() {
       let anySuccess = false;
       for (const item of newItems) {
         try {
-          await uploadFile(item.file, (percent) => {
+          const onProgress = (percent: number) => {
             setItems((prev) =>
               prev.map((i) =>
                 i.id === item.id ? { ...i, progress: percent } : i
               )
             );
-          });
+          };
+          if (projectId) {
+            await uploadProjectReference(projectId, item.file, onProgress);
+          } else {
+            await uploadFile(item.file, onProgress);
+          }
           setItems((prev) =>
             prev.map((i) =>
               i.id === item.id
@@ -73,12 +84,13 @@ export function UploadForm() {
         }
       }
       setUploading(false);
-      // Trigger data refresh so dashboard/file browser show new files
-      if (anySuccess) triggerRefresh();
+      if (anySuccess) {
+        qc.invalidateQueries({ queryKey: qk.all });
+      }
     };
 
     uploadQueue().catch(console.error);
-  }, [triggerRefresh]);
+  }, [projectId, qc]);
 
   const clearCompleted = useCallback(() => {
     setItems((prev) => prev.filter((i) => i.status === "uploading"));
@@ -91,7 +103,7 @@ export function UploadForm() {
   return (
     <Card>
       <CardHeader className="border-b border-border py-4 px-5">
-        <CardTitle className="card-title">Upload Audio</CardTitle>
+        <CardTitle className="card-title">{title}</CardTitle>
       </CardHeader>
       <CardContent className="p-5 space-y-4">
         <Dropzone

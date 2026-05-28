@@ -25,3 +25,7 @@ class AudioAsset(BaseModel):
     codec: str | None = None
     # Filename shown in card header; derived from the last path segment.
     title_preview: str | None = None
+    # Present for generated project tracks listed in the cross-project Library.
+    project_id: str | None = None
+    track_id: str | None = None
+    source: str = "library"

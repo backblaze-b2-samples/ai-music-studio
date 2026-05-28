@@ -122,6 +122,8 @@ def process_upload(
     filename: str,
     content_type: str,
     content_length: int | None = None,
+    key_prefix: str | None = None,
+    audio_only: bool = False,
 ) -> FileUploadResponse:
     """Validate and process a file upload. Raises UploadError on failure."""
     if not filename:
@@ -158,7 +160,12 @@ def process_upload(
     # B2 buckets are always versioned — uploading the same key creates a new
     # version automatically. No duplicate rejection needed.
     is_audio = content_type in AUDIO_MIME_TYPES or content_type.startswith("audio/")
-    key = _audio_key_for(safe_name) if is_audio else f"uploads/{safe_name}"
+    if audio_only and not is_audio:
+        raise UploadError("Reference clips must be audio files", status_code=415)
+    if key_prefix is not None:
+        key = f"{key_prefix}{safe_name}"
+    else:
+        key = _audio_key_for(safe_name) if is_audio else f"uploads/{safe_name}"
 
     # Extract metadata BEFORE uploading so we can stamp audio fields onto the
     # B2 object (`x-amz-meta-*`). The dashboard aggregates HEAD each object to

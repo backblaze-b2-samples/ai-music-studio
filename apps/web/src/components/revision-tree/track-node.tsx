@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Download, GitBranch, GitCompare, Layers, Play } from "lucide-react";
+import { Download, GitBranch, GitCompare, Layers, Play, Wrench } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -12,12 +12,13 @@ import {
   getTrackDownloadUrl,
   getTrackPlaybackUrl,
 } from "@/lib/api-client";
+import { useRepairTrackSidecar, useSplitTrackStems } from "@/lib/queries";
 import type { Track } from "@ai-music-studio/shared";
 
 interface TrackNodeProps {
   projectId: string;
   track: Track;
-  onBranch: (trackId: string) => void;
+  onBranch: (track: Track) => void;
   onPickCompareA: (trackId: string) => void;
   onPickCompareB: (trackId: string) => void;
   compareA: string | null;
@@ -32,6 +33,13 @@ function formatDuration(ms: number | null | undefined): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+function modeLabel(mode: Track["generation_mode"]): string | null {
+  if (mode === "extend") return "extend";
+  if (mode === "restyle") return "restyle";
+  if (mode === "new_take") return "new take";
+  return null;
+}
+
 export function TrackNode({
   projectId,
   track,
@@ -43,9 +51,12 @@ export function TrackNode({
 }: TrackNodeProps) {
   const [audioSrc, setAudioSrc] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const repairMutation = useRepairTrackSidecar(projectId);
+  const splitStemsMutation = useSplitTrackStems(projectId);
 
   const isA = compareA === track.track_id;
   const isB = compareB === track.track_id;
+  const branchLabel = modeLabel(track.generation_mode);
 
   const play = async () => {
     setLoading(true);
@@ -70,6 +81,27 @@ export function TrackNode({
     }
   };
 
+  const repair = () => {
+    repairMutation.mutate(track.track_id, {
+      onSuccess: () => toast.success("Track sidecar repaired"),
+      onError: (err) => {
+        const msg = err instanceof ApiError ? err.message : "Repair failed";
+        toast.error(msg);
+      },
+    });
+  };
+
+  const splitStems = () => {
+    splitStemsMutation.mutate(track.track_id, {
+      onSuccess: (stems) => toast.success(`Generated ${stems.length} stems`),
+      onError: (err) => {
+        const msg =
+          err instanceof ApiError ? err.message : "Stem generation failed";
+        toast.error(msg);
+      },
+    });
+  };
+
   return (
     <Card
       className={
@@ -88,10 +120,20 @@ export function TrackNode({
               <Badge variant="outline" className="h-4 px-1.5 text-[10px]">
                 {track.provider}
               </Badge>
+              {track.make_instrumental && (
+                <Badge variant="outline" className="h-4 px-1.5 text-[10px]">
+                  instrumental
+                </Badge>
+              )}
+              {track.is_orphaned && (
+                <Badge variant="destructive" className="h-4 px-1.5 text-[10px]">
+                  orphan
+                </Badge>
+              )}
               {track.parent_track_id && (
                 <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">
                   <GitBranch className="h-2.5 w-2.5 mr-0.5" />
-                  branch
+                  {branchLabel ?? "branch"}
                 </Badge>
               )}
               {isA && (
@@ -107,6 +149,31 @@ export function TrackNode({
               {track.audio.codec ?? "?"} ·{" "}
               {track.generation_ms ? `${track.generation_ms}ms gen` : "—"}
             </p>
+            {track.negative_tags && (
+              <p className="text-[11px] text-muted-foreground mt-1 line-clamp-1">
+                Avoid: {track.negative_tags}
+              </p>
+            )}
+            {track.generation_mode === "extend" && (
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Extend from: {track.continue_at_sec ?? 0}s
+              </p>
+            )}
+            {track.generation_mode === "restyle" && (
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Source influence: {track.audio_weight ?? 0.6}
+              </p>
+            )}
+            {track.stems_keys.length > 0 && (
+              <p className="text-[11px] text-muted-foreground mt-1">
+                {track.stems_keys.length} stems available
+              </p>
+            )}
+            {track.is_orphaned && (
+              <p className="text-[11px] text-destructive mt-1">
+                Audio exists in B2, but track.json is missing.
+              </p>
+            )}
           </div>
         </div>
 
@@ -146,36 +213,56 @@ export function TrackNode({
               size="sm"
               variant="outline"
               className="h-7 text-xs"
-              onClick={() => onBranch(track.track_id)}
+              onClick={() => onBranch(track)}
+              disabled={track.is_orphaned}
             >
               <GitBranch className="h-3 w-3 mr-1" />
               Branch
             </Button>
+            {track.is_orphaned && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs"
+                onClick={repair}
+                disabled={repairMutation.isPending}
+              >
+                <Wrench className="h-3 w-3 mr-1" />
+                {repairMutation.isPending ? "Repairing..." : "Repair"}
+              </Button>
+            )}
             <Button
               size="sm"
               variant={isA ? "default" : "ghost"}
               className="h-7 text-xs"
+              aria-pressed={isA}
+              title={isA ? "Clear compare A" : "Pick as compare A"}
               onClick={() => onPickCompareA(track.track_id)}
             >
-              <GitCompare className="h-3 w-3 mr-1" />A
+              <GitCompare className="h-3 w-3 mr-1" />
+              Compare A
             </Button>
             <Button
               size="sm"
               variant={isB ? "default" : "ghost"}
               className="h-7 text-xs"
+              aria-pressed={isB}
+              title={isB ? "Clear compare B" : "Pick as compare B"}
               onClick={() => onPickCompareB(track.track_id)}
             >
-              <GitCompare className="h-3 w-3 mr-1" />B
+              <GitCompare className="h-3 w-3 mr-1" />
+              Compare B
             </Button>
             <Button
               size="sm"
               variant="ghost"
               className="h-7 text-xs text-muted-foreground"
-              disabled
-              title="Stem separation is coming soon"
+              onClick={splitStems}
+              disabled={track.is_orphaned || splitStemsMutation.isPending}
+              title="Run the configured stem splitter"
             >
               <Layers className="h-3 w-3 mr-1" />
-              Generate Stems (coming soon)
+              {splitStemsMutation.isPending ? "Splitting..." : "Generate Stems"}
             </Button>
           </div>
         )}

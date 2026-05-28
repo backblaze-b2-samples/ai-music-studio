@@ -28,7 +28,7 @@ async def test_upload_activity_returns_daily_counts(client, monkeypatch):
         _make_audio_obj("audio/2026/05/c.wav", yesterday),
     ]
     monkeypatch.setattr(
-        files_service, "list_audio_objects", lambda max_keys: fake_objs
+        files_service, "list_library_objects", lambda max_keys: fake_objs
     )
     monkeypatch.setattr(
         files_service,
@@ -61,7 +61,7 @@ async def test_upload_activity_rejects_invalid_days(client):
 
 @pytest.mark.asyncio
 async def test_upload_activity_fills_missing_days(client, monkeypatch):
-    monkeypatch.setattr(files_service, "list_audio_objects", lambda max_keys: [])
+    monkeypatch.setattr(files_service, "list_library_objects", lambda max_keys: [])
     monkeypatch.setattr(
         files_service, "head_track_objects_parallel", lambda keys: {}
     )

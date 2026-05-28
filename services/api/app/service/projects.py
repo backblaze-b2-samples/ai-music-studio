@@ -62,7 +62,26 @@ def project_prefix(project_id: str) -> str:
     return f"{PROJECTS_PREFIX}{project_id}/"
 
 
-def create_project(name: str, description: str | None = None) -> Project:
+def _can_access(project: Project, user_id: str | None) -> bool:
+    return (
+        user_id is None
+        or project.owner_id is None
+        or project.owner_id == user_id
+        or user_id in project.shared_with
+    )
+
+
+def _require_access(project: Project, user_id: str | None) -> Project:
+    if not _can_access(project, user_id):
+        raise ProjectNotFound()
+    return project
+
+
+def create_project(
+    name: str,
+    description: str | None = None,
+    owner_id: str | None = None,
+) -> Project:
     """Create a new project and persist the manifest.
 
     The project id is a fresh UUID-4 minted server-side so clients never
@@ -76,6 +95,7 @@ def create_project(name: str, description: str | None = None) -> Project:
         created_at=datetime.now(UTC),
         archived=False,
         track_count=0,
+        owner_id=owner_id,
     )
     manifest = ProjectManifest(project=project)
     put_json(manifest_key(project.project_id), manifest.model_dump(mode="json"))
@@ -83,15 +103,15 @@ def create_project(name: str, description: str | None = None) -> Project:
     return project
 
 
-def get_project(project_id: str) -> Project:
+def get_project(project_id: str, user_id: str | None = None) -> Project:
     validate_project_id(project_id)
     payload = get_json(manifest_key(project_id))
     if payload is None:
         raise ProjectNotFound()
-    return ProjectManifest.model_validate(payload).project
+    return _require_access(ProjectManifest.model_validate(payload).project, user_id)
 
 
-def list_projects() -> list[Project]:
+def list_projects(user_id: str | None = None) -> list[Project]:
     """List every project by reading each manifest in parallel-ish order.
 
     `list_project_root_prefixes` returns `projects/<id>/` strings; for
@@ -115,7 +135,9 @@ def list_projects() -> list[Project]:
             logger.warning("Project prefix %s has no manifest; skipping", prefix)
             continue
         try:
-            projects.append(ProjectManifest.model_validate(payload).project)
+            project = ProjectManifest.model_validate(payload).project
+            if _can_access(project, user_id):
+                projects.append(project)
         except Exception:
             logger.warning("Project %s has malformed manifest; skipping", project_id)
             continue
@@ -124,21 +146,21 @@ def list_projects() -> list[Project]:
     return projects
 
 
-def archive_project(project_id: str) -> None:
+def archive_project(project_id: str, user_id: str | None = None) -> None:
     """Mark the project as archived but keep the artifacts.
 
     Mirrors a soft-delete UX where the user can recover. Hard-delete is
     `delete_project`. Both validate the id first.
     """
     validate_project_id(project_id)
-    project = get_project(project_id)
+    project = get_project(project_id, user_id)
     project.archived = True
     manifest = ProjectManifest(project=project)
     put_json(manifest_key(project_id), manifest.model_dump(mode="json"))
     logger.info("Project archived: id=%s", project_id)
 
 
-def delete_project(project_id: str) -> tuple[list[str], list[dict]]:
+def delete_project(project_id: str, user_id: str | None = None) -> tuple[list[str], list[dict]]:
     """Hard-delete a project and every artifact under its prefix.
 
     Returns `(deleted_keys, errors)` so partial failures surface in the
@@ -146,6 +168,7 @@ def delete_project(project_id: str) -> tuple[list[str], list[dict]]:
     of the list+batch-delete pattern.
     """
     validate_project_id(project_id)
+    _ = get_project(project_id, user_id)
     deleted, errors = delete_project_tree(project_id)
     logger.info(
         "Project deleted: id=%s deleted=%d errors=%d",

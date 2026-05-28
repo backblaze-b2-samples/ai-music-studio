@@ -1,6 +1,7 @@
 from app.types.files import FileMetadata, FileMetadataDetail
 from app.types.library import AudioAsset
 from app.types.project import (
+    GenerationMode,
     GenerationRequest,
     GenerationStatus,
     Project,
@@ -20,6 +21,7 @@ __all__ = [
     "FileMetadata",
     "FileMetadataDetail",
     "FileUploadResponse",
+    "GenerationMode",
     "GenerationRequest",
     "GenerationStatus",
     "Project",

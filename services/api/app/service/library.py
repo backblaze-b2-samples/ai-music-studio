@@ -1,15 +1,8 @@
 """Audio Library service layer.
 
-Lists, heads, deletes, and presigns audio assets stored under the `audio/`
-prefix in B2. The service layer owns key validation and orchestration; raw
-S3 calls live in `repo/b2_client.py`.
-
-The canonical shape produced by the Upload pipeline is
-`audio/<YYYY>/<MM>/<safe-name>--<uuid>.<ext>`, but the Library plays any
-object under `audio/` ending in a supported extension — files seeded into
-the bucket via the B2 console, an earlier sample, or direct S3 sync stay
-playable. The `--<uuid>` suffix is stripped for display via
-`_filename_from_key`; externally-seeded keys with no `--` are shown as-is.
+Lists, heads, deletes, and presigns legacy `audio/` assets plus generated
+project-track audio. Raw S3 calls live in `repo/`; this layer owns key
+validation, metadata shaping, and dashboard aggregates.
 """
 
 from __future__ import annotations
@@ -20,13 +13,16 @@ import re
 
 from app.repo import (
     AUDIO_PREFIX,
+    PROJECTS_PREFIX,
     delete_audio_object,
     delete_audio_objects_batch,
     get_presigned_url,
     head_audio_object,
     head_track_objects_parallel,
     list_audio_objects,
+    list_project_keys,
     presign_audio_playback,
+    presign_track_playback,
 )
 from app.types import AudioAsset
 from app.types.formatting import humanize_bytes
@@ -41,6 +37,13 @@ logger = logging.getLogger(__name__)
 # unknown extensions are still rejected before any B2 call.
 AUDIO_KEY_RE = re.compile(
     r"^audio/[A-Za-z0-9_][A-Za-z0-9_./\-]*\.(wav|mp3|flac|ogg|m4a|aac|opus)$",
+    re.IGNORECASE,
+)
+PROJECT_TRACK_AUDIO_RE = re.compile(
+    r"^projects/"
+    r"(?P<project_id>[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})/"
+    r"tracks/(?P<track_id>[A-Za-z0-9_.-]+)/audio\."
+    r"(?P<ext>wav|mp3|flac|ogg|m4a|aac|opus)$",
     re.IGNORECASE,
 )
 
@@ -63,7 +66,12 @@ class AudioAssetNotFound(Exception):
 
 def validate_audio_key(key: str) -> None:
     """Reject keys that don't match the audio prefix shape."""
-    if not key or ".." in key or "//" in key or not AUDIO_KEY_RE.match(key):
+    if (
+        not key
+        or ".." in key
+        or "//" in key
+        or not (AUDIO_KEY_RE.match(key) or PROJECT_TRACK_AUDIO_RE.match(key))
+    ):
         raise AudioKeyError()
 
 
@@ -99,6 +107,13 @@ def _filename_from_key(key: str) -> str:
     return stem if sep and stem else segment
 
 
+def _project_track_ids(key: str) -> tuple[str | None, str | None]:
+    match = PROJECT_TRACK_AUDIO_RE.match(key)
+    if not match:
+        return None, None
+    return match.group("project_id"), match.group("track_id")
+
+
 def _int_or_none(v: object) -> int | None:
     """Parse a metadata string back to int; ignore garbage rather than 500."""
     if v is None:
@@ -128,7 +143,7 @@ def _metadata_from_head(head: dict | None) -> dict:
     }
 
 
-def _asset_from_object(obj: dict, head: dict | None = None) -> AudioAsset:
+def audio_asset_from_object(obj: dict, head: dict | None = None) -> AudioAsset:
     key = obj["Key"]
     size = obj["Size"]
     extra = _metadata_from_head(head)
@@ -136,15 +151,35 @@ def _asset_from_object(obj: dict, head: dict | None = None) -> AudioAsset:
     # metadata stamping (externally-seeded files).
     if not extra.get("codec"):
         extra["codec"] = _guess_codec(key)
+    project_id, track_id = _project_track_ids(key)
+    title = (
+        f"track-{track_id[:8]}.{key.rsplit('.', 1)[-1].lower()}"
+        if track_id
+        else _filename_from_key(key)
+    )
     return AudioAsset(
         key=key,
         size_bytes=size,
         size_human=humanize_bytes(size),
         content_type=_content_type_for(key),
         created_at=obj["LastModified"],
-        title_preview=_filename_from_key(key),
+        title_preview=title,
+        project_id=project_id,
+        track_id=track_id,
+        source="project" if project_id else "library",
         **extra,
     )
+
+
+def list_library_objects(max_keys: int = 1000) -> list[dict]:
+    """List legacy audio objects plus generated project-track audio."""
+    legacy = list_audio_objects(max_keys=max_keys)
+    project_objects = [
+        obj
+        for obj in list_project_keys(PROJECTS_PREFIX, max_keys=max_keys)
+        if PROJECT_TRACK_AUDIO_RE.match(obj["Key"])
+    ]
+    return legacy + project_objects
 
 
 def list_audio_assets(limit: int = 100, with_metadata: bool = True) -> list[AudioAsset]:
@@ -160,7 +195,7 @@ def list_audio_assets(limit: int = 100, with_metadata: bool = True) -> list[Audi
     """
     if limit < 1 or limit > 500:
         raise ValueError("Limit must be between 1 and 500")
-    raw = list_audio_objects(max_keys=1000)
+    raw = list_library_objects(max_keys=1000)
     raw.sort(key=lambda o: o["LastModified"], reverse=True)
     raw = raw[:limit]
     heads: dict[str, dict] = (
@@ -168,7 +203,7 @@ def list_audio_assets(limit: int = 100, with_metadata: bool = True) -> list[Audi
         if with_metadata
         else {}
     )
-    return [_asset_from_object(obj, heads.get(obj["Key"])) for obj in raw]
+    return [audio_asset_from_object(obj, heads.get(obj["Key"])) for obj in raw]
 
 
 def get_playback_url(key: str) -> str:
@@ -176,6 +211,8 @@ def get_playback_url(key: str) -> str:
     validate_audio_key(key)
     if head_audio_object(key) is None:
         raise AudioAssetNotFound()
+    if PROJECT_TRACK_AUDIO_RE.match(key):
+        return presign_track_playback(key)
     return presign_audio_playback(key)
 
 
@@ -226,7 +263,7 @@ def get_audio_aggregates() -> dict:
     bucket contents. The HEAD fanout caps at 10k objects to keep an
     accidentally-huge bucket from melting the dashboard endpoint.
     """
-    raw = list_audio_objects(max_keys=10_000)
+    raw = list_library_objects(max_keys=10_000)
     total = len(raw)
     total_size = sum(obj["Size"] for obj in raw)
 
@@ -251,5 +288,6 @@ def get_audio_aggregates() -> dict:
         "total_size_bytes": total_size,
         "total_size_human": humanize_bytes(total_size),
         "audio_prefix": AUDIO_PREFIX,
+        "project_prefix": PROJECTS_PREFIX,
         "formats": formats,
     }

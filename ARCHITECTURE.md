@@ -8,9 +8,9 @@
     show track count and a link to the studio
   - **Project Studio** (`/projects/[id]`) — `GenerateForm`,
     `RevisionTree` (indented list), `TrackNode` (per-track player +
-    branch / A / B / Generate Stems (disabled)), `CompareDialog` (dual
+    branch / A / B / Generate Stems), `CompareDialog` (dual
     `<audio>` + diff list), plus a "Project Files" tab rendering
-    `ProjectAssetExplorer` scoped to `projects/<id>/`
+    `ProjectAssetExplorer` scoped to `projects/<id>/`, and reference upload
   - **Track Library** (`/library`) — cross-project `AudioAssetCard`
     grid; every generated track in one view, inline playback and delete
   - **Files** (`/files`) — full B2 bucket explorer (tree view, preview,
@@ -70,8 +70,7 @@ services/api/
       b2_client.py            Generic B2 file helpers (incl. shared `get_s3_client`)
       b2_tracks.py            Audio-prefix helpers (list / head-parallel / delete / playback presign)
       b2_projects.py          Project-scoped helpers (put_json, get_json, list, delete tree, presign)
-      music_provider.py       MusicProvider interface + MockMusicProvider + SunoMusicProvider
-      _mock_tracks/           Pre-baked WAVs committed for MockMusicProvider
+      music_provider.py       MusicProvider interface + MusicApiProvider (calls musicapi.ai)
     service/                  Business logic — projects, generation, revisions, stems, library, upload, audio_metadata, files
     runtime/                  FastAPI route handlers — health, projects, generation, revisions, library, files, upload, metrics
   tests/                      pytest tests (structural + integration)
@@ -105,19 +104,19 @@ projects/<project-id>/project.json                        # ProjectManifest (JSO
 projects/<project-id>/tracks/<track-id>/audio.<ext>       # generated audio bytes
 projects/<project-id>/tracks/<track-id>/track.json        # Track sidecar (carries parent_track_id)
 projects/<project-id>/tracks/<track-id>/stems/<name>.wav  # stems (placeholder)
-projects/<project-id>/reference/<safe-filename>           # reference clip uploads (future)
+projects/<project-id>/reference/<safe-filename>           # reference clip uploads
 audio/<YYYY>/<MM>/<safe-filename>--<uuid>.<ext>           # legacy/cross-project library prefix
 uploads/<safe-filename>                                   # generic uploads (kept for parity)
 ```
 
-The Library (`/library`) lists the `audio/` prefix. The Project Studio
-reads/writes only under `projects/<id>/`. The full-bucket Files explorer
-sees everything.
+The Library (`/library`) lists legacy `audio/` objects plus generated
+project-track audio. The Project Studio reads/writes only under
+`projects/<id>/`. The full-bucket Files explorer sees everything.
 
 ## External Services
 
 - **Backblaze B2 S3 API** — audio storage, retrieval, deletion, presigned URLs.
-- **Music generation provider** — abstracted via `MusicProvider`. Default `MockMusicProvider` is in-process and depends on no external service. `SunoMusicProvider` is currently a stub.
+- **Music generation provider** — abstracted via `MusicProvider`. `MusicApiProvider` calls [musicapi.ai](https://musicapi.ai) (Suno-compatible REST API, free credits on signup).
 
 ## Trust Boundaries
 
@@ -125,16 +124,16 @@ See [docs/SECURITY.md](docs/SECURITY.md) for full security documentation.
 
 - **Frontend -> API** — CORS-restricted to configured origins
 - **API -> B2** — authenticated via application keys, signature v4
-- **API -> Music Provider** — server-side only; `SUNO_API_KEY` is never sent to the browser
+- **API -> Music Provider** — server-side only; `MUSICAPI_API_KEY` is never sent to the browser
 - **Client -> B2** — presigned URLs for playback (inline) and download (attachment); 10-min expiry
 
 ## Data Flows
 
-- **Generation**: Browser -> `POST /projects/{id}/generate` -> service validates the project + request -> `get_provider().generate(...)` -> bytes returned -> repo writes audio to `projects/<id>/tracks/<track-id>/audio.<ext>` with S3 user metadata (duration / sample-rate / channels / parent-track-id / project-id / provider) -> service writes `track.json` sidecar -> service increments `project.track_count` -> returns the persisted `Track` to the UI.
-- **Revision tree**: Browser -> `GET /projects/{id}/revisions` -> service lists every `track.json` sidecar under the project prefix -> threads them by `parent_track_id` -> returns a list of root `RevisionNode`s, each recursively populated.
+- **Generation**: Browser -> `POST /projects/{id}/generate` -> runtime validates project/auth/rate-limit -> service writes queued `GenerationStatus` -> in-process worker calls `get_provider().generate(...)` -> bytes returned -> repo writes audio to `projects/<id>/tracks/<track-id>/audio.<ext>` with S3 user metadata (duration / sample-rate / channels / parent-track-id / project-id / provider) -> service writes `track.json` sidecar -> service increments `project.track_count` -> UI polls `GET /projects/{id}/generations/{track_id}`.
+- **Revision tree**: Browser -> `GET /projects/{id}/revisions` -> service lists every `track.json` sidecar and any audio objects missing sidecars under the project prefix -> threads them by `parent_track_id` -> returns a list of root `RevisionNode`s, each recursively populated.
 - **Compare**: Browser -> `GET /projects/{id}/compare?a=...&b=...` -> service loads both tracks (404 if missing) -> returns a `TrackDiff` (booleans for prompt / style / duration / audio-metadata changes).
 - **Track playback / download**: Browser -> `GET /projects/{id}/tracks/{track_id}/playback|download` -> service reads the audio key out of the sidecar (extension isn't fixed) -> repo mints a presigned GET (inline for playback, `Content-Disposition: attachment` for download) -> browser streams bytes directly from B2.
-- **Library list**: Browser -> `GET /library` -> service calls repo with `Prefix="audio/"` -> HEADs every key in parallel for stamped metadata -> returns `AudioAsset[]`.
+- **Library list**: Browser -> `GET /library` -> service lists `audio/` plus generated project-track audio -> HEADs every key in parallel for stamped metadata -> returns `AudioAsset[]`.
 - **Bucket explorer**: Browser -> `GET /files` -> service calls repo with empty prefix -> returns full bucket tree (unchanged from starter).
 - **Project asset explorer**: Browser -> `GET /files?prefix=projects/<id>/` -> reuses the bucket-explorer route under the hood, scoped to one project (no separate API surface needed).
 

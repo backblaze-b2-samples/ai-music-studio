@@ -1,4 +1,4 @@
-<!-- last_verified: 2026-05-26 -->
+<!-- last_verified: 2026-05-27 -->
 # App Workflows
 
 User journeys inside the application.
@@ -9,20 +9,20 @@ User journeys inside the application.
 - Names the project ("Lo-fi study session"), optionally describes it
 - Clicks into the project — lands on `/projects/<id>`
 - Writes a prompt ("warm ambient pad with soft bells, slow tempo"),
-  picks a style preset, sets duration (default 30s)
-- Clicks **Generate** — the button shows a generating state; in mock
-  mode the call returns in ~1s with the new `Track` payload
+  adds optional style / avoid tags, and toggles instrumental mode if wanted
+- Clicks **Generate** — the button shows a generating state while the
+  provider call returns the new `Track` payload
 - The track appears as a node in the **Revision Tree** below the form;
   TanStack Query has already invalidated the tree query so it re-renders
   with the new node
 - Clicks **Play** on the node — the player swaps in for the action row,
   fed by a short-lived presigned URL
 - Clicks **Branch** on the node — the form re-titles to "Branch from
-  selected track" and shows the parent id; the next generate call lands
-  as a child node in the tree
+  selected track" and shows New Take / Extend / Restyle controls; the
+  next generate call lands as a child node in the tree
 - Picks two nodes (**A** then **B**) — the **Compare** dialog opens
   with both tracks side-by-side, dual `<audio controls>`, and a diff
-  list (prompt / style / duration / audio-metadata)
+  list (prompt / controls / branch mode / duration / audio-metadata)
 - Switches to the **Project Files** tab to see the project's scoped B2
   view: `project.json`, every `tracks/<id>/audio.<ext>` + `track.json`
 - Done. Closes the project — every artifact is still in B2 under
@@ -34,8 +34,8 @@ User journeys inside the application.
 
 - User navigates to `/library`
 - Page loads the asset list from `GET /library` (sorted newest-first) —
-  this is every audio object under the `audio/` prefix (legacy + any
-  externally-seeded files), not the project-scoped tracks
+  this is every legacy `audio/` object plus generated project-scoped
+  tracks
 - Each `AudioAssetCard` shows: filename, duration · sample rate ·
   channels · created date, an inline waveform stub, and Play / Download
   / Delete actions

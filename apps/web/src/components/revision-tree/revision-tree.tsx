@@ -6,14 +6,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { PendingGeneration } from "@/components/generation/pending-generation";
 import { useRevisionTree } from "@/lib/queries";
-import type { RevisionNode } from "@ai-music-studio/shared";
+import type { RevisionNode, Track } from "@ai-music-studio/shared";
 
+import { PendingTrackNode } from "./pending-track-node";
 import { TrackNode } from "./track-node";
 
 interface RevisionTreeProps {
   projectId: string;
-  onBranch: (trackId: string) => void;
+  pendingGeneration: PendingGeneration | null;
+  onDismissPendingGeneration: () => void;
+  onBranch: (track: Track) => void;
   onPickCompareA: (trackId: string) => void;
   onPickCompareB: (trackId: string) => void;
   compareA: string | null;
@@ -27,6 +31,8 @@ interface RevisionTreeProps {
  */
 export function RevisionTree({
   projectId,
+  pendingGeneration,
+  onDismissPendingGeneration,
   onBranch,
   onPickCompareA,
   onPickCompareB,
@@ -50,8 +56,12 @@ export function RevisionTree({
   }
 
   const roots = data ?? [];
+  const hasPendingRoot = !!pendingGeneration && !pendingGeneration.parentTrackId;
+  const pendingParentInTree = pendingGeneration?.parentTrackId
+    ? treeContainsTrack(roots, pendingGeneration.parentTrackId)
+    : false;
 
-  if (roots.length === 0) {
+  if (roots.length === 0 && !pendingGeneration) {
     return (
       <Card>
         <CardContent className="p-0">
@@ -74,12 +84,20 @@ export function RevisionTree({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
+        {hasPendingRoot && (
+          <PendingTrackNode
+            pending={pendingGeneration}
+            onDismiss={onDismissPendingGeneration}
+          />
+        )}
         {roots.map((root) => (
           <NodeRow
             key={root.track.track_id}
             projectId={projectId}
             node={root}
             depth={0}
+            pendingGeneration={pendingGeneration}
+            onDismissPendingGeneration={onDismissPendingGeneration}
             onBranch={onBranch}
             onPickCompareA={onPickCompareA}
             onPickCompareB={onPickCompareB}
@@ -87,8 +105,21 @@ export function RevisionTree({
             compareB={compareB}
           />
         ))}
+        {pendingGeneration && pendingGeneration.parentTrackId && !pendingParentInTree && (
+          <PendingTrackNode
+            pending={pendingGeneration}
+            onDismiss={onDismissPendingGeneration}
+          />
+        )}
       </CardContent>
     </Card>
+  );
+}
+
+function treeContainsTrack(nodes: RevisionNode[], trackId: string): boolean {
+  return nodes.some(
+    (node) =>
+      node.track.track_id === trackId || treeContainsTrack(node.children, trackId),
   );
 }
 
@@ -96,7 +127,9 @@ interface NodeRowProps {
   projectId: string;
   node: RevisionNode;
   depth: number;
-  onBranch: (trackId: string) => void;
+  pendingGeneration: PendingGeneration | null;
+  onDismissPendingGeneration: () => void;
+  onBranch: (track: Track) => void;
   onPickCompareA: (trackId: string) => void;
   onPickCompareB: (trackId: string) => void;
   compareA: string | null;
@@ -107,12 +140,17 @@ function NodeRow({
   projectId,
   node,
   depth,
+  pendingGeneration,
+  onDismissPendingGeneration,
   onBranch,
   onPickCompareA,
   onPickCompareB,
   compareA,
   compareB,
 }: NodeRowProps) {
+  const hasPendingChild =
+    pendingGeneration?.parentTrackId === node.track.track_id;
+
   return (
     <div>
       <div style={{ paddingLeft: depth * 24 }}>
@@ -126,14 +164,24 @@ function NodeRow({
           compareB={compareB}
         />
       </div>
-      {node.children.length > 0 && (
+      {(hasPendingChild || node.children.length > 0) && (
         <div className="mt-3 space-y-3">
+          {hasPendingChild && pendingGeneration && (
+            <div style={{ paddingLeft: (depth + 1) * 24 }}>
+              <PendingTrackNode
+                pending={pendingGeneration}
+                onDismiss={onDismissPendingGeneration}
+              />
+            </div>
+          )}
           {node.children.map((child) => (
             <NodeRow
               key={child.track.track_id}
               projectId={projectId}
               node={child}
               depth={depth + 1}
+              pendingGeneration={pendingGeneration}
+              onDismissPendingGeneration={onDismissPendingGeneration}
               onBranch={onBranch}
               onPickCompareA={onPickCompareA}
               onPickCompareB={onPickCompareB}

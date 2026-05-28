@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from app.runtime.auth import UserContext, require_user
 from app.service.projects import (
     ProjectIdError,
     ProjectNotFound,
@@ -28,20 +29,30 @@ class CreateProjectRequest(BaseModel):
 
 
 @router.get("/projects", response_model=list[Project])
-async def list_projects_endpoint():
-    return list_projects()
+async def list_projects_endpoint(user: UserContext = Depends(require_user)):
+    return list_projects(user.user_id)
 
 
 @router.post("/projects", response_model=Project)
-async def create_project_endpoint(body: CreateProjectRequest):
-    project = create_project(name=body.name, description=body.description)
+async def create_project_endpoint(
+    body: CreateProjectRequest,
+    user: UserContext = Depends(require_user),
+):
+    project = create_project(
+        name=body.name,
+        description=body.description,
+        owner_id=user.user_id,
+    )
     return project
 
 
 @router.get("/projects/{project_id}", response_model=Project)
-async def get_project_endpoint(project_id: str):
+async def get_project_endpoint(
+    project_id: str,
+    user: UserContext = Depends(require_user),
+):
     try:
-        return get_project(project_id)
+        return get_project(project_id, user.user_id)
     except ProjectIdError as e:
         raise HTTPException(status_code=400, detail=e.detail) from None
     except ProjectNotFound as e:
@@ -49,9 +60,12 @@ async def get_project_endpoint(project_id: str):
 
 
 @router.delete("/projects/{project_id}")
-async def delete_project_endpoint(project_id: str):
+async def delete_project_endpoint(
+    project_id: str,
+    user: UserContext = Depends(require_user),
+):
     try:
-        deleted, errors = delete_project(project_id)
+        deleted, errors = delete_project(project_id, user.user_id)
     except ProjectIdError as e:
         raise HTTPException(status_code=400, detail=e.detail) from None
     except RuntimeError:

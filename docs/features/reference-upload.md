@@ -10,15 +10,14 @@ it sits alongside the project's tracks and stems and is captured by the
 Project Asset Explorer view.
 
 ## Used By
-- UI: project detail page — reference-clip drop zone (pending wiring; see Edge Cases)
-- API: `POST /upload?prefix=projects/<id>/reference/` (the existing upload
-  pipeline; the prefix is passed by the caller)
+- UI: project detail page — Project Files tab reference-clip drop zone
+- API: `POST /projects/{project_id}/reference`
 
 ## Core Functions
 - `apps/web/src/components/upload/upload-form.tsx` — drag-and-drop + file picker, progress bar, error toasts
 - `apps/web/src/components/upload/dropzone.tsx` — drag-target primitive
 - `apps/web/src/components/upload/upload-progress.tsx` — chunked progress UI
-- `apps/web/src/lib/api-client.ts::uploadFile` — multipart POST
+- `apps/web/src/lib/api-client.ts::uploadProjectReference` — multipart POST
 - `apps/web/src/lib/queries.ts::useUpload, useProjectAssets` — TanStack hooks
 - `services/api/app/runtime/upload.py` — `POST /upload` route handler
 - `services/api/app/service/upload.py` — filename sanitization, content-type sniff, key composition, metadata stamping
@@ -32,7 +31,6 @@ Project Asset Explorer view.
 ## Inputs
 - `POST /upload` multipart form:
   - `file: UploadFile` — the audio bytes
-  - `prefix: string` — `projects/<project-id>/reference/` for reference clips (validated against the project-id regex on the client side; the API only rejects path-traversal payloads)
 - Max size: `MAX_FILE_SIZE` from `services/api/app/config/settings.py` (default 100 MB)
 
 ## Outputs
@@ -50,7 +48,7 @@ Project Asset Explorer view.
 - API returns `{ key, metadata }`; the UI shows the upload in the Project Asset Explorer
 
 ## Edge Cases
-- **UI not yet wired**: the project detail page does not yet mount `<UploadForm scope="reference"/>`. The upload primitive exists at `apps/web/src/components/upload/*`; the wiring is tracked in `docs/exec-plans/tech-debt-tracker.md`. Until then, reference clips can be `curl`'d directly against `POST /upload` with the correct `prefix`.
+- **Non-audio upload** -> 415; project references are audio-only
 - **Path-traversal in filename** -> sanitizer strips `..`, `/`, `\`, `%00`, `\x00`
 - **File too large** -> 413 from the API with `X-Max-Size` header
 - **Unsupported content type** -> 415 (non-audio MIME types accepted into `uploads/`, not `projects/<id>/reference/`)
@@ -65,7 +63,7 @@ Project Asset Explorer view.
 - Error: toast with the API error message
 
 ## Verification
-- Test files: `services/api/tests/test_upload.py` (covers sanitization, key composition, metadata stamping, content-type bucketing). Add a project-scoped variant when the UI wiring lands.
+- Test files: `services/api/tests/test_upload_conflict.py`
 - Quick verify command: `pnpm test:api`
 - Full verify command: `pnpm lint && pnpm lint:api && pnpm test:api && pnpm check:structure`
 - Pass criteria: all pytest tests green, no ruff violations

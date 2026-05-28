@@ -71,6 +71,9 @@ export interface AudioAsset {
   bit_depth: number | null;
   codec: string | null;
   title_preview: string | null;
+  project_id: string | null;
+  track_id: string | null;
+  source: "library" | "project";
 }
 
 // --- Music-studio types ---
@@ -83,6 +86,8 @@ export interface Project {
   created_at: string;
   archived: boolean;
   track_count: number;
+  owner_id: string | null;
+  shared_with: string[];
 }
 
 export type StemName = "vocals" | "drums" | "bass" | "other";
@@ -104,19 +109,29 @@ export interface TrackVariant {
 }
 
 /** A generated music track. */
+export type GenerationMode = "create" | "new_take" | "extend" | "restyle";
+
 export interface Track {
   track_id: string;
   project_id: string;
   prompt: string;
   style: string | null;
+  negative_tags: string | null;
+  make_instrumental: boolean;
+  generation_mode: GenerationMode;
+  continue_at_sec: number | null;
+  audio_weight: number | null;
   duration_sec: number;
   provider: string;
+  provider_task_id: string | null;
+  provider_clip_id: string | null;
   parent_track_id: string | null;
   generation_ms: number | null;
   created_at: string;
   audio: AudioAsset;
   variants: TrackVariant[];
   stems_keys: string[];
+  is_orphaned: boolean;
 }
 
 export type GenerationStatusName = "queued" | "running" | "succeeded" | "failed";
@@ -140,6 +155,11 @@ export interface TrackDiff {
   b: Track;
   prompt_changed: boolean;
   style_changed: boolean;
+  negative_tags_changed: boolean;
+  instrumental_changed: boolean;
+  generation_mode_changed: boolean;
+  continue_at_changed: boolean;
+  audio_weight_changed: boolean;
   duration_changed: boolean;
   audio_metadata_changed: boolean;
 }
@@ -147,6 +167,11 @@ export interface TrackDiff {
 export interface GenerationRequestBody {
   prompt: string;
   style?: string | null;
+  negative_tags?: string | null;
+  make_instrumental?: boolean;
+  generation_mode?: GenerationMode;
+  continue_at_sec?: number | null;
+  audio_weight?: number | null;
   duration_sec?: number;
   parent_track_id?: string | null;
 }

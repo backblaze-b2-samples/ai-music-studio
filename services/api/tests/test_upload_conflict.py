@@ -160,3 +160,22 @@ def test_non_audio_upload_skips_s3_metadata(monkeypatch):
 
     assert len(captured_kwargs) == 1
     assert captured_kwargs[0]["metadata"] is None
+
+
+def test_reference_upload_uses_project_reference_prefix(monkeypatch):
+    captured: list[str] = []
+    _stub_upload(monkeypatch, captured=captured)
+
+    result = upload_service.process_upload(
+        file_data=b"RIFF\x00\x00\x00\x00WAVEfmt ",
+        filename="../Guide Clip.wav",
+        content_type="audio/wav",
+        content_length=16,
+        key_prefix="projects/123e4567-e89b-42d3-a456-426614174000/reference/",
+        audio_only=True,
+    )
+
+    assert result.key == (
+        "projects/123e4567-e89b-42d3-a456-426614174000/reference/Guide_Clip.wav"
+    )
+    assert captured == [result.key]

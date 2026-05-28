@@ -18,7 +18,7 @@ format breakdown.
 - `apps/web/src/lib/api-client.ts::getFileStats, getFiles, getUploadActivity`
 - `services/api/app/runtime/files.py` — `GET /files/stats` handler
 - `services/api/app/service/files.py` — `get_stats()` merges `get_upload_stats()` with `get_audio_aggregates()`
-- `services/api/app/service/library.py` — `get_audio_aggregates()` totals the `audio/` prefix
+- `services/api/app/service/library.py` — `get_audio_aggregates()` totals legacy `audio/` assets plus generated project tracks
 
 ## Canonical Files
 - Stats service logic: `services/api/app/service/files.py`
@@ -40,8 +40,8 @@ format breakdown.
 - Empty state ("No tracks yet — create your first project") collapses every grid until the first track lands
 
 ## Notes on metrics
-- `total_audio_assets` covers everything under `audio/` — project-scoped tracks at `projects/<id>/tracks/<id>/audio.<ext>` are not yet included (tracked in tech debt — the dashboard will broaden to project-scoped tracks once the Library does)
-- Provider breakdown (mock vs real) is implicit in the per-track sidecars' `provider` field; surfacing it as a chart is a future enhancement (tech debt)
+- `total_audio_assets` covers both legacy `audio/` objects and project-scoped generated tracks at `projects/<id>/tracks/<id>/audio.<ext>`.
+- Provider breakdown is implicit in the per-track sidecars' `provider` field; surfacing it as a chart is a future enhancement.
 
 ## Edge Cases
 - API unavailable -> stats default to zeros, table shows empty state

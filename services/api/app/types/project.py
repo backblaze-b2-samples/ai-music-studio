@@ -16,6 +16,8 @@ from pydantic import BaseModel, Field
 
 from app.types.library import AudioAsset
 
+GenerationMode = Literal["create", "new_take", "extend", "restyle"]
+
 
 class GenerationRequest(BaseModel):
     """A user-submitted generation request.
@@ -26,6 +28,11 @@ class GenerationRequest(BaseModel):
 
     prompt: str = Field(..., min_length=1, max_length=2000)
     style: str | None = None
+    negative_tags: str | None = Field(default=None, max_length=1000)
+    make_instrumental: bool = False
+    generation_mode: GenerationMode = "create"
+    continue_at_sec: int | None = Field(default=None, ge=0, le=3600)
+    audio_weight: float | None = Field(default=None, ge=0, le=1)
     duration_sec: int = Field(default=30, ge=5, le=300)
     parent_track_id: str | None = None
 
@@ -69,10 +76,10 @@ class TrackVariant(BaseModel):
     """Alternative take produced by the same generation job.
 
     Some music providers return N candidates per call; the primary candidate
-    is the `Track` itself, additional candidates land here. Modeled but
-    unused by `MockMusicProvider` (which returns a single deterministic
-    track); slot is reserved so a real provider can fan out without a wire
-    change.
+    is the `Track` itself, additional candidates land here. Unused by
+    `MusicApiProvider` today (the description-mode endpoint returns one
+    track); the slot is reserved so a multi-candidate provider can fan
+    out without a wire change.
     """
 
     variant_id: str
@@ -93,14 +100,22 @@ class Track(BaseModel):
     project_id: str
     prompt: str
     style: str | None = None
+    negative_tags: str | None = None
+    make_instrumental: bool = False
+    generation_mode: GenerationMode = "create"
+    continue_at_sec: int | None = None
+    audio_weight: float | None = None
     duration_sec: int
     provider: str
+    provider_task_id: str | None = None
+    provider_clip_id: str | None = None
     parent_track_id: str | None = None
     generation_ms: int | None = None
     created_at: datetime
     audio: AudioAsset
     variants: list[TrackVariant] = Field(default_factory=list)
     stems_keys: list[str] = Field(default_factory=list)
+    is_orphaned: bool = False
 
 
 class Project(BaseModel):
@@ -112,6 +127,8 @@ class Project(BaseModel):
     created_at: datetime
     archived: bool = False
     track_count: int = 0
+    owner_id: str | None = None
+    shared_with: list[str] = Field(default_factory=list)
 
 
 class ProjectManifest(BaseModel):
@@ -146,6 +163,11 @@ class TrackDiff(BaseModel):
     b: Track
     prompt_changed: bool
     style_changed: bool
+    negative_tags_changed: bool
+    instrumental_changed: bool
+    generation_mode_changed: bool
+    continue_at_changed: bool
+    audio_weight_changed: bool
     duration_changed: bool
     audio_metadata_changed: bool
 

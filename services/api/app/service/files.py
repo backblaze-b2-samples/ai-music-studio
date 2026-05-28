@@ -17,10 +17,9 @@ from app.repo import (
     get_presigned_url,
     get_upload_stats,
     head_track_objects_parallel,
-    list_audio_objects,
     list_files,
 )
-from app.service.library import get_audio_aggregates
+from app.service.library import get_audio_aggregates, list_library_objects
 from app.types import FileMetadata, UploadStats
 from app.types.stats import DailyUploadCount
 
@@ -201,7 +200,7 @@ def get_upload_activity(days: int = 7) -> list[DailyUploadCount]:
     today = datetime.now(UTC).date()
     cutoff = today - timedelta(days=days - 1)
 
-    raw = list_audio_objects(max_keys=10_000)
+    raw = list_library_objects(max_keys=10_000)
     in_window = [o for o in raw if o["LastModified"].date() >= cutoff]
     heads = head_track_objects_parallel([o["Key"] for o in in_window])
 

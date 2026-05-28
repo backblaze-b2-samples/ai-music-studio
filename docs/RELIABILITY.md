@@ -40,22 +40,18 @@ Reliability expectations and practices for this project.
 
 ## Music Generation
 
-- The mock provider takes ~1s; real providers (Suno / Udio) typically
-  take 30-90s. v1 runs generation **synchronously inside the request**
-  because that's enough for the mock; a real provider needs a background
-  worker (tracked in tech debt) and the UI is pre-wired to poll
-  `GET /projects/{id}/tracks/{track_id}` for status.
+- Real providers can take minutes. Generation requests return a queued
+  `GenerationStatus` immediately, then an in-process worker performs the
+  provider call while the UI polls
+  `GET /projects/{id}/generations/{track_id}`.
 - Timeouts: the mock provider sleeps under 1.2s; FastAPI's default
   request timeout (the platform default — uvicorn doesn't impose one)
   is fine for the mock. Add an explicit timeout in `generate_track`
   when wiring a real provider.
 - Partial failure semantics:
   - If the audio upload to B2 succeeds but the `track.json` sidecar
-    write fails, the audio remains in B2 but won't appear in the
-    revision tree (the tree is built from sidecars). The endpoint
-    returns 500; the caller can safely retry the generation. Tracked
-    in tech debt — `build_tree` should surface the orphan audio key
-    as a recoverable row.
+    write fails, the audio remains in B2. `build_tree` surfaces the
+    orphan audio key as a recoverable row with a repair action.
   - `project.json::track_count` bumps are best-effort and logged WARN
     on failure; the persisted track is the source of truth, and a
     re-list rebuilds the count.
