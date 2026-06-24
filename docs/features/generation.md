@@ -85,7 +85,7 @@ the sample database-free: status snapshots live under
 - **Sidecar write fails after audio is uploaded** -> job status becomes failed; the audio object remains in B2 and `build_tree` can surface it as an orphan with a repair action
 
 ## Verification
-- Test files: `services/api/tests/test_generation_service.py`, `services/api/tests/test_generation_runtime.py`
+- Test files: `services/api/tests/test_generation_service.py`, `services/api/tests/test_generation_runtime.py`, `services/api/tests/test_generation_request_validation.py`
 - Quick verify command: `pnpm test:api`
 - Full verify command: `pnpm lint && pnpm lint:api && pnpm test:api && pnpm check:structure`
 - Pass criteria: all pytest tests green, no ruff violations
