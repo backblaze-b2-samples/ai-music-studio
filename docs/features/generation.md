@@ -1,4 +1,4 @@
-<!-- last_verified: 2026-05-28 -->
+<!-- last_verified: 2026-06-24 -->
 # Feature: Music Generation
 
 ## Purpose
@@ -36,8 +36,8 @@ in without touching service / runtime code.
 ## Inputs
 - `POST /projects/{id}/generate` body (`GenerationRequest`):
   - `prompt: string` (1-2000 chars, required)
-  - `style?: string` (sent as one provider style string; the UI does not force a preset list)
-  - `negative_tags?: string` (MusicAPI `negative_tags`; styles/elements to avoid)
+  - `style?: string` (max 1000 chars; sent as one provider style string; the UI does not force a preset list)
+  - `negative_tags?: string` (max 1000 chars; MusicAPI `negative_tags`; styles/elements to avoid)
   - `make_instrumental?: boolean` (MusicAPI `make_instrumental`; generate without vocals)
   - `generation_mode?: "create" | "new_take" | "extend" | "restyle"`
   - `continue_at_sec?: int` (for `extend`; defaults to parent duration when omitted)
