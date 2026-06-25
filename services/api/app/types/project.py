@@ -27,7 +27,7 @@ class GenerationRequest(BaseModel):
     """
 
     prompt: str = Field(..., min_length=1, max_length=2000)
-    style: str | None = None
+    style: str | None = Field(default=None, max_length=1000)
     negative_tags: str | None = Field(default=None, max_length=1000)
     make_instrumental: bool = False
     generation_mode: GenerationMode = "create"

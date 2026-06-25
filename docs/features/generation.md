@@ -1,4 +1,4 @@
-<!-- last_verified: 2026-05-28 -->
+<!-- last_verified: 2026-06-24 -->
 # Feature: Music Generation
 
 ## Purpose
@@ -36,8 +36,8 @@ in without touching service / runtime code.
 ## Inputs
 - `POST /projects/{id}/generate` body (`GenerationRequest`):
   - `prompt: string` (1-2000 chars, required)
-  - `style?: string` (sent as one provider style string; the UI does not force a preset list)
-  - `negative_tags?: string` (MusicAPI `negative_tags`; styles/elements to avoid)
+  - `style?: string` (max 1000 chars; sent as one provider style string; the UI does not force a preset list)
+  - `negative_tags?: string` (max 1000 chars; MusicAPI `negative_tags`; styles/elements to avoid)
   - `make_instrumental?: boolean` (MusicAPI `make_instrumental`; generate without vocals)
   - `generation_mode?: "create" | "new_take" | "extend" | "restyle"`
   - `continue_at_sec?: int` (for `extend`; defaults to parent duration when omitted)
@@ -85,7 +85,7 @@ the sample database-free: status snapshots live under
 - **Sidecar write fails after audio is uploaded** -> job status becomes failed; the audio object remains in B2 and `build_tree` can surface it as an orphan with a repair action
 
 ## Verification
-- Test files: `services/api/tests/test_generation_service.py`, `services/api/tests/test_generation_runtime.py`
+- Test files: `services/api/tests/test_generation_service.py`, `services/api/tests/test_generation_runtime.py`, `services/api/tests/test_generation_request_validation.py`
 - Quick verify command: `pnpm test:api`
 - Full verify command: `pnpm lint && pnpm lint:api && pnpm test:api && pnpm check:structure`
 - Pass criteria: all pytest tests green, no ruff violations
