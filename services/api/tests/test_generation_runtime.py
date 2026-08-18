@@ -35,3 +35,20 @@ async def test_generate_endpoint_returns_queued_status(client, monkeypatch):
     body = response.json()
     assert body["state"] == "queued"
     assert body["track_id"] == "queued-track"
+
+
+@pytest.mark.asyncio
+async def test_generate_endpoint_rejects_oversized_style(client, monkeypatch):
+    def fail_enqueue(project_id, body, user_id):
+        raise AssertionError("oversized style should fail request validation")
+
+    monkeypatch.setattr(generation_runtime, "enqueue_generation", fail_enqueue)
+
+    response = await client.post(
+        f"/projects/{PROJECT_ID}/generate",
+        json={"prompt": "ambient bells", "style": "x" * 1001},
+    )
+
+    assert response.status_code == 422
+    errors = response.json()["detail"]
+    assert any(error["loc"] == ["body", "style"] for error in errors)
