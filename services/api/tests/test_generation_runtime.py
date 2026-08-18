@@ -42,6 +42,11 @@ async def test_generate_endpoint_rejects_oversized_style(client, monkeypatch):
     def fail_enqueue(project_id, body, user_id):
         raise AssertionError("oversized style should fail request validation")
 
+    monkeypatch.setattr(
+        generation_runtime,
+        "check_generation_rate_limit",
+        lambda client_id: None,
+    )
     monkeypatch.setattr(generation_runtime, "enqueue_generation", fail_enqueue)
 
     response = await client.post(
